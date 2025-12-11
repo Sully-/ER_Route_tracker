@@ -1,0 +1,60 @@
+# Route Tracker Configuration
+# ============================
+#
+# This file MUST be placed next to route_tracking.dll for the mod to work.
+#
+# =============================================================================
+# HOTKEY FORMAT
+# =============================================================================
+#
+# Hotkeys support optional modifiers: ctrl, shift, alt
+# Format: "key" or "modifier+key" or "modifier+modifier+key"
+#
+# Examples:
+#   "f9"           - Just F9
+#   "ctrl+f9"      - Ctrl + F9
+#   "shift+a"      - Shift + A
+#   "ctrl+shift+s" - Ctrl + Shift + S
+#   "alt+1"        - Alt + 1
+#
+# =============================================================================
+# VALID KEY NAMES
+# =============================================================================
+#
+# Letters:      a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z
+# Numbers:      0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+# Function:     f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12
+# Numpad:       numpad0-numpad9, num0-num9, multiply, add, subtract, decimal, divide
+# Navigation:   insert (ins), delete (del, suppr), home, end, pageup (pgup), pagedown (pgdn)
+# Arrows:       up, down, left, right
+# Special:      escape (esc), enter (return), space, tab, backspace
+# Punctuation:  semicolon (;), equals (=), comma (,), minus (-), period (.), slash (/), etc.
+#
+# Key names are case-insensitive: "F9", "f9", "F9" all work the same.
+# =============================================================================
+
+[keybindings]
+# Key to toggle UI visibility
+toggle_ui = "f9"
+
+# Key to start/stop recording
+toggle_recording = "ctrl+r"
+
+# Key to clear the recorded route
+clear_route = "ctrl+shift+c"
+
+# Key to save the recorded route to file
+save_route = "ctrl+s"
+
+[recording]
+# Interval between position records in milliseconds
+# Lower values = more precision but larger data
+# 100ms = 10 points per second (default)
+# 50ms = 20 points per second
+# 200ms = 5 points per second
+record_interval_ms = 100
+
+[output]
+# Directory where route files will be saved (relative to DLL location)
+# Routes are saved as JSON files with timestamp in the filename
+routes_directory = "routes"

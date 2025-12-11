@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elden Ring Route Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            z-index: 1000;
+            border-bottom: 1px solid #c9a227;
+        }
+
+        #toolbar h1 {
+            font-size: 1.2em;
+            color: #c9a227;
+            font-weight: normal;
+        }
+
+        #toolbar button, #toolbar label {
+            background: #2a2a4a;
+            border: 1px solid #c9a227;
+            color: #c9a227;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        #toolbar button:hover, #toolbar label:hover {
+            background: #c9a227;
+            color: #1a1a2e;
+        }
+
+        #toolbar input[type="file"] {
+            display: none;
+        }
+
+        #info {
+            margin-left: auto;
+            font-size: 0.9em;
+            color: #888;
+        }
+
+        #map-container {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        #map-container:active {
+            cursor: grabbing;
+        }
+
+        #canvas-container {
+            position: absolute;
+            transform-origin: 0 0;
+        }
+
+        #map-image {
+            display: block;
+            max-width: none;
+        }
+
+        #route-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #route-info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 1px solid #c9a227;
+            max-width: 300px;
+        }
+
+        #route-info h3 {
+            color: #c9a227;
+            margin-bottom: 10px;
+        }
+
+        #route-info p {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+
+        #zoom-controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #zoom-controls button {
+            width: 40px;
+            height: 40px;
+            font-size: 1.5em;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #c9a227;
+            color: #c9a227;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        #zoom-controls button:hover {
+            background: #c9a227;
+            color: #1a1a2e;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <h1>⚔ Elden Ring Route Viewer</h1>
+        <label for="route-file">📂 Load Route JSON</label>
+        <input type="file" id="route-file" accept=".json">
+        <button id="clear-btn">🗑 Clear</button>
+        <button id="fit-btn">🔲 Fit to Screen</button>
+        <button id="focus-btn">🎯 Focus Route</button>
+        <div id="info">Scroll to zoom • Drag to pan</div>
+    </div>
+
+    <div id="map-container">
+        <div id="canvas-container">
+            <img id="map-image" src="fextralife_map.jpg" alt="Elden Ring Map">
+            <canvas id="route-canvas"></canvas>
+        </div>
+    </div>
+
+    <div id="route-info" class="hidden">
+        <h3>Route Info</h3>
+        <p>Name: <span id="route-name">-</span></p>
+        <p>Points: <span id="route-points">-</span></p>
+        <p>Duration: <span id="route-duration">-</span></p>
+        <p>Recorded: <span id="route-date">-</span></p>
+    </div>
+
+    <div id="zoom-controls">
+        <button id="zoom-in">+</button>
+        <button id="zoom-out">−</button>
+    </div>
+
+    <script>
+        // =============================================================================
+        // CALIBRATION - FILL THESE VALUES WITH YOUR MAPPING POINTS
+        // =============================================================================
+        // 
+        // You need at least 2 points to calibrate:
+        // Game coordinates (X, Y) -> Pixel coordinates (x, y)
+        //
+        // Format: { gameX, gameY, pixelX, pixelY }
+        
+        const CALIBRATION_POINTS = [
+            // Calibration points: Game(X, Z) → Pixel(x, y)
+            // Note: Using GLOBAL coordinates. gameX = global X, gameZ = global Z (Y is altitude, ignored)
+            { gameX: 10740.49, gameY: 9159.12, pixelX: 5847, pixelY: 11447 },
+            { gameX: 10704.96, gameY: 9296.39, pixelX: 5801, pixelY: 11240 },
+            { gameX: 10927.56, gameY: 9523.99, pixelX: 6135, pixelY: 10886 },
+            { gameX: 12396.08, gameY: 10301.70, pixelX: 8434, pixelY: 9693 },
+        ];
+
+        // Image dimensions
+        const MAP_WIDTH = 15175;
+        const MAP_HEIGHT = 14280;
+
+        // =============================================================================
+        // COORDINATE TRANSFORMATION (Affine transformation using least squares)
+        // =============================================================================
+        // 
+        // Affine transform: pixelX = a*gameX + b*gameY + c
+        //                   pixelY = d*gameX + e*gameY + f
+
+        let transform = null;
+
+        // Simple matrix operations for least squares
+        function solveLinearSystem(points, getTarget) {
+            // Solve for coefficients [a, b, c] where target = a*gameX + b*gameY + c
+            // Using normal equations: (A^T * A) * x = A^T * b
+            
+            const n = points.length;
+            
+            // Build A^T * A (3x3 matrix) and A^T * b (3x1 vector)
+            let ATA = [[0,0,0], [0,0,0], [0,0,0]];
+            let ATb = [0, 0, 0];
+            
+            for (const p of points) {
+                const row = [p.gameX, p.gameY, 1];
+                const target = getTarget(p);
+                
+                // Add to A^T * A
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        ATA[i][j] += row[i] * row[j];
+                    }
+                    ATb[i] += row[i] * target;
+                }
+            }
+            
+            // Solve 3x3 system using Gaussian elimination
+            const m = [
+                [ATA[0][0], ATA[0][1], ATA[0][2], ATb[0]],
+                [ATA[1][0], ATA[1][1], ATA[1][2], ATb[1]],
+                [ATA[2][0], ATA[2][1], ATA[2][2], ATb[2]]
+            ];
+            
+            // Forward elimination
+            for (let i = 0; i < 3; i++) {
+                // Find pivot
+                let maxRow = i;
+                for (let k = i + 1; k < 3; k++) {
+                    if (Math.abs(m[k][i]) > Math.abs(m[maxRow][i])) maxRow = k;
+                }
+                [m[i], m[maxRow]] = [m[maxRow], m[i]];
+                
+                if (Math.abs(m[i][i]) < 1e-10) {
+                    console.error('Matrix is singular!');
+                    return [0, 0, 0];
+                }
+                
+                // Eliminate column
+                for (let k = i + 1; k < 3; k++) {
+                    const factor = m[k][i] / m[i][i];
+                    for (let j = i; j < 4; j++) {
+                        m[k][j] -= factor * m[i][j];
+                    }
+                }
+            }
+            
+            // Back substitution
+            const x = [0, 0, 0];
+            for (let i = 2; i >= 0; i--) {
+                x[i] = m[i][3];
+                for (let j = i + 1; j < 3; j++) {
+                    x[i] -= m[i][j] * x[j];
+                }
+                x[i] /= m[i][i];
+            }
+            
+            return x;
+        }
+
+        function calculateTransform() {
+            if (CALIBRATION_POINTS.length < 2) {
+                console.warn('Need at least 2 calibration points!');
+                transform = { a: 1, b: 0, c: MAP_WIDTH/2, d: 0, e: -5, f: MAP_HEIGHT };
+                return;
+            }
+
+            console.log('Calculating transform with', CALIBRATION_POINTS.length, 'points...');
+            
+            // Solve for pixelX = a*gameX + b*gameY + c
+            const [a, b, c] = solveLinearSystem(CALIBRATION_POINTS, p => p.pixelX);
+            
+            // Solve for pixelY = d*gameX + e*gameY + f
+            const [d, e, f] = solveLinearSystem(CALIBRATION_POINTS, p => p.pixelY);
+            
+            transform = { a, b, c, d, e, f };
+
+            console.log('Affine transform calculated:');
+            console.log(`  pixelX = ${a.toFixed(4)} * gameX + ${b.toFixed(4)} * gameY + ${c.toFixed(2)}`);
+            console.log(`  pixelY = ${d.toFixed(4)} * gameX + ${e.toFixed(4)} * gameY + ${f.toFixed(2)}`);
+            
+            // Verify calibration accuracy
+            console.log('Calibration verification:');
+            let totalErrorX = 0, totalErrorY = 0;
+            for (const p of CALIBRATION_POINTS) {
+                const result = gameToPixel(p.gameX, p.gameY);
+                const errorX = Math.abs(result.x - p.pixelX);
+                const errorY = Math.abs(result.y - p.pixelY);
+                totalErrorX += errorX;
+                totalErrorY += errorY;
+                console.log(`  Game(${p.gameX}, ${p.gameY}) → Pixel(${result.x.toFixed(0)}, ${result.y.toFixed(0)}) | Expected(${p.pixelX}, ${p.pixelY}) | Error: ${errorX.toFixed(1)}, ${errorY.toFixed(1)}`);
+            }
+            console.log(`Average error: X=${(totalErrorX/CALIBRATION_POINTS.length).toFixed(1)}, Y=${(totalErrorY/CALIBRATION_POINTS.length).toFixed(1)}`);
+        }
+
+        function gameToPixel(gameX, gameY) {
+            if (!transform) calculateTransform();
+            return {
+                x: transform.a * gameX + transform.b * gameY + transform.c,
+                y: transform.d * gameX + transform.e * gameY + transform.f
+            };
+        }
+
+        // =============================================================================
+        // MAP VIEWER
+        // =============================================================================
+
+        const mapContainer = document.getElementById('map-container');
+        const canvasContainer = document.getElementById('canvas-container');
+        const mapImage = document.getElementById('map-image');
+        const routeCanvas = document.getElementById('route-canvas');
+        const ctx = routeCanvas.getContext('2d');
+
+        let scale = 0.1;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let lastX, lastY;
+
+        let currentRoute = null;
+
+        // Initialize canvas size
+        function initCanvas() {
+            routeCanvas.width = MAP_WIDTH;
+            routeCanvas.height = MAP_HEIGHT;
+            updateTransform();
+        }
+
+        function updateTransform() {
+            canvasContainer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        }
+
+        // Pan
+        mapContainer.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            panX += e.clientX - lastX;
+            panY += e.clientY - lastY;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            updateTransform();
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Zoom
+        mapContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = mapContainer.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const oldScale = scale;
+            const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+            scale = Math.max(0.02, Math.min(2, scale * zoomFactor));
+
+            // Adjust pan to zoom toward mouse position
+            panX = mouseX - (mouseX - panX) * (scale / oldScale);
+            panY = mouseY - (mouseY - panY) * (scale / oldScale);
+
+            updateTransform();
+        });
+
+        // Zoom buttons
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            scale = Math.min(2, scale * 1.2);
+            updateTransform();
+        });
+
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            scale = Math.max(0.02, scale / 1.2);
+            updateTransform();
+        });
+
+        // Fit to screen
+        document.getElementById('fit-btn').addEventListener('click', () => {
+            const containerRect = mapContainer.getBoundingClientRect();
+            scale = Math.min(
+                containerRect.width / MAP_WIDTH,
+                containerRect.height / MAP_HEIGHT
+            ) * 0.95;
+            panX = (containerRect.width - MAP_WIDTH * scale) / 2;
+            panY = (containerRect.height - MAP_HEIGHT * scale) / 2;
+            updateTransform();
+        });
+        
+        // Focus on route
+        document.getElementById('focus-btn').addEventListener('click', () => {
+            if (!currentRoute || !currentRoute.points || currentRoute.points.length === 0) {
+                alert('No route loaded!');
+                return;
+            }
+            
+            // Calculate bounding box of the route
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const point of currentRoute.points) {
+                const p = gameToPixel(point.global_x, point.global_z);
+                minX = Math.min(minX, p.x);
+                minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            }
+            
+            // Add padding
+            const padding = 200;
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
+            
+            const routeWidth = maxX - minX;
+            const routeHeight = maxY - minY;
+            
+            const containerRect = mapContainer.getBoundingClientRect();
+            
+            // Calculate scale to fit route
+            scale = Math.min(
+                containerRect.width / routeWidth,
+                containerRect.height / routeHeight
+            ) * 0.9;
+            
+            // Limit scale
+            scale = Math.max(0.1, Math.min(2, scale));
+            
+            // Center on route
+            const centerX = (minX + maxX) / 2;
+            const centerY = (minY + maxY) / 2;
+            panX = containerRect.width / 2 - centerX * scale;
+            panY = containerRect.height / 2 - centerY * scale;
+            
+            updateTransform();
+            console.log('Focused on route. BBox:', minX.toFixed(0), minY.toFixed(0), '-', maxX.toFixed(0), maxY.toFixed(0));
+        });
+
+        // =============================================================================
+        // ROUTE RENDERING
+        // =============================================================================
+
+        function drawRoute(route) {
+            console.log('drawRoute called with:', route);
+            console.log('Canvas size:', routeCanvas.width, 'x', routeCanvas.height);
+            
+            ctx.clearRect(0, 0, routeCanvas.width, routeCanvas.height);
+
+            if (!route || !route.points || route.points.length < 2) {
+                console.warn('Route invalid or too few points:', route?.points?.length);
+                return;
+            }
+
+            const points = route.points;
+            console.log('Drawing', points.length, 'points');
+
+            // Debug: show first and last point coordinates (using global coordinates)
+            const firstPoint = gameToPixel(points[0].global_x, points[0].global_z);
+            const lastPointDebug = gameToPixel(points[points.length - 1].global_x, points[points.length - 1].global_z);
+            console.log('First point: Game(', points[0].global_x, ',', points[0].global_z, ') → Pixel(', firstPoint.x.toFixed(0), ',', firstPoint.y.toFixed(0), ')');
+            console.log('Last point: Game(', points[points.length-1].global_x, ',', points[points.length-1].global_z, ') → Pixel(', lastPointDebug.x.toFixed(0), ',', lastPointDebug.y.toFixed(0), ')');
+
+            // Draw route line
+            ctx.beginPath();
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            ctx.moveTo(firstPoint.x, firstPoint.y);
+
+            for (let i = 1; i < points.length; i++) {
+                const p = gameToPixel(points[i].global_x, points[i].global_z);
+                ctx.lineTo(p.x, p.y);
+            }
+
+            ctx.stroke();
+
+            // Draw gradient overlay for direction
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+            ctx.lineWidth = 4;
+            
+            ctx.moveTo(firstPoint.x, firstPoint.y);
+            for (let i = 1; i < points.length; i++) {
+                const p = gameToPixel(points[i].global_x, points[i].global_z);
+                ctx.lineTo(p.x, p.y);
+            }
+            ctx.stroke();
+
+            // Draw start point (green)
+            ctx.beginPath();
+            ctx.fillStyle = '#00ff00';
+            ctx.arc(firstPoint.x, firstPoint.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw end point (red)
+            const lastPoint = gameToPixel(points[points.length - 1].global_x, points[points.length - 1].global_z);
+            ctx.beginPath();
+            ctx.fillStyle = '#ff0000';
+            ctx.arc(lastPoint.x, lastPoint.y, 15, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Update info panel
+            updateRouteInfo(route);
+        }
+
+        function updateRouteInfo(route) {
+            document.getElementById('route-info').classList.remove('hidden');
+            document.getElementById('route-name').textContent = route.name || 'Unnamed';
+            document.getElementById('route-points').textContent = route.point_count || route.points.length;
+            
+            const duration = route.duration_secs || 0;
+            const mins = Math.floor(duration / 60);
+            const secs = Math.floor(duration % 60);
+            document.getElementById('route-duration').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+            
+            document.getElementById('route-date').textContent = route.recorded_at || '-';
+        }
+
+        function clearRoute() {
+            ctx.clearRect(0, 0, routeCanvas.width, routeCanvas.height);
+            currentRoute = null;
+            document.getElementById('route-info').classList.add('hidden');
+        }
+
+        // =============================================================================
+        // FILE LOADING
+        // =============================================================================
+
+        document.getElementById('route-file').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const route = JSON.parse(event.target.result);
+                    console.log('JSON parsed:', route);
+                    console.log('Points array:', route.points ? route.points.length + ' points' : 'NO POINTS ARRAY');
+                    
+                    // Ensure transform is calculated
+                    if (!transform) {
+                        console.log('Calculating transform...');
+                        calculateTransform();
+                    }
+                    
+                    currentRoute = route;
+                    drawRoute(route);
+                    console.log('Route loaded:', route.name, '-', (route.point_count || route.points?.length), 'points');
+                } catch (err) {
+                    console.error('Parse error:', err);
+                    alert('Error parsing route file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        document.getElementById('clear-btn').addEventListener('click', clearRoute);
+
+        // =============================================================================
+        // INITIALIZATION
+        // =============================================================================
+
+        mapImage.onload = () => {
+            console.log('Map image loaded successfully');
+            initCanvas();
+            calculateTransform();
+            // Fit to screen on load
+            document.getElementById('fit-btn').click();
+        };
+
+        // Handle missing image - still init canvas so routes can be drawn
+        mapImage.onerror = () => {
+            console.error('Map image failed to load!');
+            alert('Map image not found! Please place "fextralife_map.jpg" in the same folder as this HTML file.\n\nRoutes will still be drawn but without the background map.');
+            initCanvas();
+            calculateTransform();
+        };
+        
+        // Fallback: init after a delay if image hasn't loaded
+        setTimeout(() => {
+            if (routeCanvas.width === 0) {
+                console.warn('Forcing canvas init after timeout');
+                initCanvas();
+                calculateTransform();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
+
