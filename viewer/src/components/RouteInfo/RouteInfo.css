@@ -1,0 +1,29 @@
+.route-info {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 15px 20px;
+  border-radius: 8px;
+  border: 1px solid #c9a227;
+  z-index: 1000;
+  min-width: 250px;
+}
+
+.route-info h3 {
+  color: #c9a227;
+  margin: 0 0 10px 0;
+  font-size: 1em;
+}
+
+.route-info p {
+  margin: 5px 0;
+  font-size: 0.85em;
+  color: #ccc;
+}
+
+.route-info .stat {
+  color: #fff;
+  font-weight: bold;
+}
+

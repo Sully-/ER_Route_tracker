@@ -1,6 +1,8 @@
 # Route Tracker - Elden Ring Mod
 
-A mod for Elden Ring that records player position to track speedrun routes.
+> ⚠️ **Alpha Version** - Under active development
+
+A mod for Elden Ring that records player position to track speedrun routes, with an interactive map viewer.
 
 ## License
 
@@ -9,13 +11,64 @@ This project is licensed under **GNU Affero General Public License v3.0** (AGPL-
 This project uses code from [eldenring-practice-tool](https://github.com/veeenu/eldenring-practice-tool) 
 by johndisandonato, also licensed under AGPL-3.0.
 
+## Current Features
+
+### Tracker (Rust DLL)
+- [x] Display current player position (X, Y, Z, Map ID)
+- [x] Display global world coordinates (converted from local tile coordinates)
+- [x] Record route with configurable interval
+- [x] Configurable hotkeys with modifier support
+- [x] Built-in DLL injector
+- [x] Export route to JSON file
+
+### Viewer (React + Leaflet.js)
+- [x] Interactive world map with tile-based rendering
+- [x] Load and display recorded routes
+- [x] Start/End markers
+- [x] Auto-focus on routes
+
+## Roadmap
+
+### Tracker
+- [ ] Event tracking (item pickup, death, grace activation...)
+- [ ] Real-time position streaming to endpoint for live tracking
+
+### Viewer
+- [ ] Event icons on map (item pickup, death, grace activation...)
+- [ ] Location icons (graces, bosses, merchants...)
+- [ ] Underground maps & DLC maps
+- [ ] Timelapse playback mode
+- [ ] Real-time live tracking of player position
+
+## Project Structure
+
+```
+Route_tracking/
+├── Cargo.toml                        # Rust project configuration
+├── LICENSE                           # AGPL-3.0 license
+├── README.md                         # This file
+├── route_tracker_config.toml         # Configuration template
+├── src/
+│   ├── lib.rs                        # Main mod code (DLL)
+│   ├── config.rs                     # Configuration & hotkey parsing
+│   ├── route.rs                      # Route data structures
+│   ├── tracker.rs                    # Position tracking logic
+│   ├── coordinate_transformer.rs     # Local → Global coordinate conversion
+│   ├── ui.rs                         # ImGui overlay
+│   ├── injector.rs                   # Standalone injector (EXE)
+│   └── WorldMapLegacyConvParam.csv   # Coordinate mapping data
+└── viewer/                           # Interactive map viewer
+    └── (see viewer/README.md)
+```
+
 ## Prerequisites
 
 - Rust toolchain (edition 2021)
 - Windows target: `x86_64-pc-windows-msvc`
 - Elden Ring with [EAC bypass](https://soulsspeedruns.com/eldenring/eac-bypass/)
+- Node.js 18+ (for the viewer)
 
-## Building
+## Building the Mod
 
 ```powershell
 cargo build --release
@@ -33,6 +86,7 @@ Copy these files to the same folder:
 - `route_tracking.dll`
 - `route-tracker-injector.exe`
 - `route_tracker_config.toml` (required!)
+- `WorldMapLegacyConvParam.csv` (required for coordinate conversion)
 
 ### 2. Configure (optional)
 
@@ -42,10 +96,14 @@ Edit `route_tracker_config.toml` to customize hotkeys:
 [keybindings]
 toggle_ui = "f9"              # Show/hide overlay
 toggle_recording = "ctrl+r"   # Start/stop recording
+save_route = "ctrl+s"         # Save route to file
 clear_route = "ctrl+shift+c"  # Clear recorded route
 
 [recording]
 record_interval_ms = 100      # Record position every 100ms
+
+[output]
+routes_directory = "routes"   # Where to save route files
 ```
 
 **Hotkey format:**
@@ -64,7 +122,12 @@ record_interval_ms = 100      # Record position every 100ms
 Default hotkeys (configurable):
 - **F9** - Toggle overlay visibility
 - **Ctrl+R** - Start/Stop recording
+- **Ctrl+S** - Save current route to JSON
 - **Ctrl+Shift+C** - Clear recorded route
+
+### 5. View your routes
+
+See [viewer/README.md](viewer/README.md) for the interactive map viewer.
 
 ## Configuration file
 
@@ -84,30 +147,6 @@ The `route_tracker_config.toml` file **must exist** next to the DLL. The mod wil
 | Special | `escape`, `enter`, `space`, `tab`, `backspace` |
 
 Key names are case-insensitive.
-
-## Project Structure
-
-```
-Route_tracking/
-├── Cargo.toml                    # Project configuration
-├── LICENSE                       # AGPL-3.0 license
-├── README.md                     # This file
-├── route_tracker_config.toml     # Configuration template
-└── src/
-    ├── lib.rs                    # Main mod code (DLL)
-    ├── config.rs                 # Configuration & hotkey parsing
-    └── injector.rs               # Standalone injector (EXE)
-```
-
-## Features
-
-- [x] Display current player position (X, Y, Z, Map ID)
-- [x] Record route with configurable interval
-- [x] Configurable hotkeys with modifier support
-- [x] Built-in DLL injector
-- [ ] Export route to file
-- [ ] 3D route visualization
-- [ ] Route comparison
 
 ## Attribution
 

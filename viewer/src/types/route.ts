@@ -1,0 +1,20 @@
+export interface RoutePoint {
+  x: number;
+  y: number;
+  z: number;
+  global_x: number;
+  global_y: number;
+  global_z: number;
+  map_id: number;
+  map_id_str: string;
+  timestamp_ms: number;
+}
+
+export interface Route {
+  name: string;
+  recorded_at: string;
+  point_count: number;
+  duration_secs: number;
+  points: RoutePoint[];
+}
+

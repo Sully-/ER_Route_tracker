@@ -1,0 +1,52 @@
+.toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.9);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  z-index: 1000;
+  border-bottom: 2px solid #c9a227;
+}
+
+.toolbar-title {
+  font-size: 1.2em;
+  color: #c9a227;
+  font-weight: normal;
+  margin-right: 20px;
+}
+
+.toolbar-btn {
+  background: #2a2a4a;
+  border: 1px solid #c9a227;
+  color: #c9a227;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  font-size: 0.9em;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  background: #c9a227;
+  color: #1a1a2e;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-input {
+  display: none;
+}
+
+.toolbar-info {
+  margin-left: auto;
+  font-size: 0.85em;
+  color: #888;
+}
+

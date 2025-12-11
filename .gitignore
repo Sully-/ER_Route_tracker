@@ -1,2 +1,6 @@
 /.idea/*
 /target/*
+/.vscode/*
+/dist/*
+/viewer/dist/*
+/viewer/node_modules/*
