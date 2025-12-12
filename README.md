@@ -2,6 +2,7 @@
 
 > ⚠️ **Alpha Version** - Under active development
 
+
 A mod for Elden Ring that records player position to track speedrun routes, with an interactive map viewer.
 
 ## License
@@ -21,7 +22,7 @@ by johndisandonato, also licensed under AGPL-3.0.
 - [x] Built-in DLL injector
 - [x] Export route to JSON file
 
-### Viewer (React + Leaflet.js)
+### Viewer (React + Leaflet.js) https://sulli.tech/ER_Route_tracker/
 - [x] Interactive world map with tile-based rendering
 - [x] Load and display recorded routes
 - [x] Start/End markers
