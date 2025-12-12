@@ -31,7 +31,6 @@ pub struct Anchor {
 #[derive(Debug)]
 pub enum TransformError {
     UnknownMap(String),
-    CsvParseError(String),
     IoError(String),
 }
 
@@ -39,7 +38,6 @@ impl std::fmt::Display for TransformError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TransformError::UnknownMap(id) => write!(f, "Unknown map_id: {}", id),
-            TransformError::CsvParseError(msg) => write!(f, "CSV parse error: {}", msg),
             TransformError::IoError(msg) => write!(f, "IO error: {}", msg),
         }
     }
@@ -191,48 +189,6 @@ impl WorldPositionTransformer {
         format!("m{:02}_{:02}_{:02}_{:02}", ww, xx, yy, dd)
     }
     
-    /// Convert local coordinates to world coordinates
-    /// 
-    /// # Arguments
-    /// * `map_id` - The packed map ID (u32)
-    /// * `x`, `y`, `z` - Local coordinates
-    /// 
-    /// # Returns
-    /// * `Ok(Vec<(f32, f32, f32)>)` - List of possible world positions
-    /// * `Err(TransformError)` - If the map is unknown
-    pub fn local_to_world(&self, map_id: u32, x: f32, y: f32, z: f32) -> Result<Vec<(f32, f32, f32)>, TransformError> {
-        let (area_no, grid_x, grid_z, _) = Self::parse_map_id(map_id);
-        
-        // Case 1: Overworld tiles (m60_XX_YY_00)
-        // These use a simple 256-unit grid
-        if area_no == 60 {
-            let gx = x + (grid_x as f32) * 256.0;
-            let gy = y;
-            let gz = z + (grid_z as f32) * 256.0;
-            return Ok(vec![(gx, gy, gz)]);
-        }
-        
-        // Case 2: Legacy/Underground/Dungeons
-        // Use anchors from WorldMapLegacyConvParam
-        let key = (area_no, grid_x, grid_z);
-        
-        if let Some(anchor_list) = self.anchors.get(&key) {
-            let results: Vec<(f32, f32, f32)> = anchor_list
-                .iter()
-                .map(|anchor| {
-                    let gx = x - anchor.src_pos.0 + anchor.dst_pos.0;
-                    let gy = y - anchor.src_pos.1 + anchor.dst_pos.1;
-                    let gz = z - anchor.src_pos.2 + anchor.dst_pos.2;
-                    (gx, gy, gz)
-                })
-                .collect();
-            
-            Ok(results)
-        } else {
-            Err(TransformError::UnknownMap(Self::format_map_id(map_id)))
-        }
-    }
-    
     /// Convert local coordinates to world coordinates (returns best result)
     /// 
     /// Prioritizes anchors that point to the overworld (dstAreaNo == 60).
@@ -281,18 +237,6 @@ impl WorldPositionTransformer {
         Err(TransformError::UnknownMap(Self::format_map_id(map_id)))
     }
     
-    /// Check if we have anchor data for a given map
-    pub fn has_anchors_for(&self, map_id: u32) -> bool {
-        let (area_no, grid_x, grid_z, _) = Self::parse_map_id(map_id);
-        
-        // Overworld always has implicit anchors
-        if area_no == 60 {
-            return true;
-        }
-        
-        self.anchors.contains_key(&(area_no, grid_x, grid_z))
-    }
-    
     /// Get the number of loaded anchors
     pub fn anchor_count(&self) -> usize {
         self.anchors.values().map(|v| v.len()).sum()
@@ -337,10 +281,7 @@ mod tests {
         let map_id = 0x3C282300u32;
         let (x, y, z) = (10.0, 100.0, 20.0);
         
-        let result = transformer.local_to_world(map_id, x, y, z).unwrap();
-        assert_eq!(result.len(), 1);
-        
-        let (gx, gy, gz) = result[0];
+        let (gx, gy, gz) = transformer.local_to_world_first(map_id, x, y, z).unwrap();
         // GX = x + 40 * 256 = 10 + 10240 = 10250
         assert_eq!(gx, 10.0 + 40.0 * 256.0);
         // GY = y (unchanged)
