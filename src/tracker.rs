@@ -129,11 +129,11 @@ impl RouteTracker {
         if !self.is_recording {
             return;
         }
-        
+
         if self.last_record_time.elapsed() < self.record_interval {
             return;
         }
-        
+
         if let (Some([x, y, z, _, _]), Some(map_id)) = (
             self.pointers.global_position.read(),
             self.pointers.global_position.read_map_id(),
@@ -141,14 +141,17 @@ impl RouteTracker {
             let timestamp_ms = self.start_time
                 .map(|t| t.elapsed().as_millis() as u64)
                 .unwrap_or(0);
-            
+
             // Convert to global coordinates
             let (global_x, global_y, global_z) = self.transformer
                 .local_to_world_first(map_id, x, y, z)
                 .unwrap_or((x, y, z)); // Fallback to local if conversion fails
-            
+
             let map_id_str = WorldPositionTransformer::format_map_id(map_id);
-            
+
+            // Detect if player is riding Torrent (Torrent is spawned = player is mounted)
+            let on_torrent = self.pointers.torrent_chunk_position.read().is_some();
+
             self.route.push(RoutePoint {
                 x,
                 y,
@@ -159,8 +162,9 @@ impl RouteTracker {
                 map_id,
                 map_id_str,
                 timestamp_ms,
+                on_torrent,
             });
-            
+
             self.last_record_time = Instant::now();
         }
     }

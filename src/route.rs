@@ -31,6 +31,8 @@ pub struct RoutePoint {
     pub map_id_str: String,
     /// Timestamp in milliseconds from start of recording
     pub timestamp_ms: u64,
+    /// Whether the player is riding Torrent
+    pub on_torrent: bool,
 }
 
 /// Saved route file structure
