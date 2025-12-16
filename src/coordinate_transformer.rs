@@ -364,8 +364,8 @@ impl WorldPositionTransformer {
     pub fn local_to_world_first(&self, map_id: u32, x: f32, y: f32, z: f32) -> Result<(f32, f32, f32), TransformError> {
         let (area_no, grid_x, grid_z, _) = Self::parse_map_id(map_id);
         
-        // Case 1: Overworld tiles (m60_XX_YY_00) - simple grid formula
-        if area_no == 60 {
+        // Case 1: Overworld tiles (m60|61_XX_YY_00) - simple grid formula (60 == base game, 61 == DLC)
+        if area_no == 60  || area_no == 61 {
             let gx = x + (grid_x as f32) * 256.0;
             let gy = y;
             let gz = z + (grid_z as f32) * 256.0;
