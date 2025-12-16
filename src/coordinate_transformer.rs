@@ -34,13 +34,13 @@ struct PathStep {
     anchor: Anchor,
 }
 
-/// Pre-computed path from a tile to m60
+/// Pre-computed path from a tile to a global map (m60 or m61)
 #[derive(Debug, Clone)]
-struct PathToM60 {
-    /// Sequence of steps to reach m60 (each step transforms coordinates)
+struct PathToGlobalMap {
+    /// Sequence of steps to reach global map (each step transforms coordinates)
     steps: Vec<PathStep>,
-    /// Final m60 tile coordinates (area_no, grid_x, grid_z)
-    final_m60_tile: (u8, u8, u8),
+    /// Final global map tile coordinates (area_no, grid_x, grid_z) - either m60 or m61
+    final_global_tile: (u8, u8, u8),
 }
 
 /// Error type for coordinate transformation
@@ -67,16 +67,16 @@ impl std::fmt::Display for TransformError {
 pub struct WorldPositionTransformer {
     /// Lookup table: (area_no, grid_x, grid_z) -> list of anchors
     anchors: HashMap<(u8, u8, u8), Vec<Anchor>>,
-    /// Pre-computed paths to m60 for tiles without direct links
-    paths_to_m60: HashMap<(u8, u8, u8), PathToM60>,
+    /// Pre-computed paths to global maps (m60 or m61) for tiles without direct links
+    paths_to_global: HashMap<(u8, u8, u8), PathToGlobalMap>,
 }
 
 impl WorldPositionTransformer {
-    /// Create an empty transformer (only works for m60_* overworld maps)
+    /// Create an empty transformer (only works for m60_* and m61_* overworld maps)
     pub fn empty() -> Self {
         Self {
             anchors: HashMap::new(),
-            paths_to_m60: HashMap::new(),
+            paths_to_global: HashMap::new(),
         }
     }
     
@@ -188,10 +188,10 @@ impl WorldPositionTransformer {
         // This allows finding tiles that are only referenced as destinations (like m10_01_00_00)
         Self::add_inverse_anchors(&mut anchors);
         
-        // Pre-compute paths to m60 for all tiles without direct links
-        let paths_to_m60 = Self::precompute_paths_to_m60(&anchors);
+        // Pre-compute paths to global maps (m60 or m61) for all tiles without direct links
+        let paths_to_global = Self::precompute_paths_to_global(&anchors);
         
-        Ok(Self { anchors, paths_to_m60 })
+        Ok(Self { anchors, paths_to_global })
     }
     
     /// Add inverse anchors for bidirectional navigation
@@ -247,34 +247,34 @@ impl WorldPositionTransformer {
             && (a.2 - b.2).abs() < EPSILON
     }
     
-    /// Pre-compute paths to m60 for all tiles that don't have a direct link
+    /// Pre-compute paths to global maps (m60 or m61) for all tiles that don't have a direct link
     /// 
-    /// Uses BFS to find the shortest path from each tile to any m60 tile.
+    /// Uses BFS to find the shortest path from each tile to any global map tile (m60 or m61).
     /// This is called once at load time for O(1) lookups during runtime.
-    fn precompute_paths_to_m60(
+    fn precompute_paths_to_global(
         anchors: &HashMap<(u8, u8, u8), Vec<Anchor>>,
-    ) -> HashMap<(u8, u8, u8), PathToM60> {
-        let mut paths: HashMap<(u8, u8, u8), PathToM60> = HashMap::new();
+    ) -> HashMap<(u8, u8, u8), PathToGlobalMap> {
+        let mut paths: HashMap<(u8, u8, u8), PathToGlobalMap> = HashMap::new();
         
-        // Find all tiles that need path computation (no direct m60 link)
+        // Find all tiles that need path computation (no direct global map link)
         for &tile_key in anchors.keys() {
-            // Skip m60 tiles - they don't need paths
-            if tile_key.0 == 60 {
+            // Skip global map tiles - they don't need paths
+            if tile_key.0 == 60 || tile_key.0 == 61 {
                 continue;
             }
             
-            // Check if this tile has a direct link to m60
-            let has_direct_m60 = anchors
+            // Check if this tile has a direct link to a global map (m60 or m61)
+            let has_direct_global = anchors
                 .get(&tile_key)
-                .map(|list| list.iter().any(|a| a.dst_area_no == 60))
+                .map(|list| list.iter().any(|a| a.dst_area_no == 60 || a.dst_area_no == 61))
                 .unwrap_or(false);
             
-            if has_direct_m60 {
+            if has_direct_global {
                 continue;
             }
             
-            // Use BFS to find path to m60
-            if let Some(path) = Self::bfs_find_path_to_m60(tile_key, anchors) {
+            // Use BFS to find path to global map (m60 or m61)
+            if let Some(path) = Self::bfs_find_path_to_global(tile_key, anchors) {
                 paths.insert(tile_key, path);
             }
         }
@@ -282,13 +282,13 @@ impl WorldPositionTransformer {
         paths
     }
     
-    /// BFS to find the shortest path from a tile to any m60 tile
+    /// BFS to find the shortest path from a tile to any global map (m60 or m61)
     /// 
     /// Returns the sequence of anchors to apply to transform coordinates.
-    fn bfs_find_path_to_m60(
+    fn bfs_find_path_to_global(
         start: (u8, u8, u8),
         anchors: &HashMap<(u8, u8, u8), Vec<Anchor>>,
-    ) -> Option<PathToM60> {
+    ) -> Option<PathToGlobalMap> {
         // Queue entries: (current_tile, path_so_far)
         let mut queue: VecDeque<((u8, u8, u8), Vec<PathStep>)> = VecDeque::new();
         let mut visited: HashSet<(u8, u8, u8)> = HashSet::new();
@@ -311,11 +311,11 @@ impl WorldPositionTransformer {
                     anchor: anchor.clone(),
                 });
                 
-                // Check if we reached m60
-                if anchor.dst_area_no == 60 {
-                    return Some(PathToM60 {
+                // Check if we reached a global map (m60 or m61)
+                if anchor.dst_area_no == 60 || anchor.dst_area_no == 61 {
+                    return Some(PathToGlobalMap {
                         steps: new_path,
-                        final_m60_tile: next_tile,
+                        final_global_tile: next_tile,
                     });
                 }
                 
@@ -353,38 +353,55 @@ impl WorldPositionTransformer {
     
     /// Convert local coordinates to world coordinates (returns best result)
     /// 
-    /// Prioritizes anchors that point to the overworld (dstAreaNo == 60).
-    /// If multiple anchors exist, prefers the one targeting the overworld.
-    /// For tiles without direct m60 links, uses pre-computed paths.
+    /// Prioritizes anchors that point to global maps (dstAreaNo == 60 or 61).
+    /// If multiple anchors exist, prefers m60 over m61, then m61.
+    /// For tiles without direct global map links, uses pre-computed paths.
     /// 
-    /// The conversion process for non-m60 maps:
+    /// The conversion process for non-global maps:
     /// 1. Find anchor in CSV for the source map
-    /// 2. Calculate position local to destination m60 tile: P_local = (x,y,z) - src + dst
-    /// 3. Convert to global using m60 grid: P_global = P_local + (dstGridX * 256, 0, dstGridZ * 256)
+    /// 2. Calculate position local to destination global map tile: P_local = (x,y,z) - src + dst
+    /// 3. Convert to global using global map grid: P_global = P_local + (dstGridX * 256, 0, dstGridZ * 256)
     pub fn local_to_world_first(&self, map_id: u32, x: f32, y: f32, z: f32) -> Result<(f32, f32, f32), TransformError> {
+        let result = self.local_to_world_with_global_map(map_id, x, y, z)?;
+        Ok((result.0, result.1, result.2))
+    }
+    
+    /// Convert local coordinates to world coordinates and return the global map ID
+    /// 
+    /// Returns (global_x, global_y, global_z, global_map_area_no)
+    /// where global_map_area_no is 60 for Lands Between or 61 for Shadow Realm
+    pub fn local_to_world_with_global_map(&self, map_id: u32, x: f32, y: f32, z: f32) -> Result<(f32, f32, f32, u8), TransformError> {
         let (area_no, grid_x, grid_z, _) = Self::parse_map_id(map_id);
         
-        // Case 1: Overworld tiles (m60|61_XX_YY_00) - simple grid formula (60 == base game, 61 == DLC)
+        // Case 1: Global map tiles (m60|61_XX_YY_00) - simple grid formula (60 == base game, 61 == DLC)
         if area_no == 60  || area_no == 61 {
             let gx = x + (grid_x as f32) * 256.0;
             let gy = y;
             let gz = z + (grid_z as f32) * 256.0;
-            return Ok((gx, gy, gz));
+            return Ok((gx, gy, gz, area_no));
         }
         
         let key = (area_no, grid_x, grid_z);
         
-        // Case 2: Direct anchor to m60
+        // Case 2: Direct anchor to global map (prefer m60, then m61)
         if let Some(anchor_list) = self.anchors.get(&key) {
-            // Try to find a direct anchor to m60
+            // Try to find a direct anchor to m60 first
             if let Some(anchor) = anchor_list.iter().find(|a| a.dst_area_no == 60) {
-                return Ok(Self::apply_anchor_and_convert_to_global(x, y, z, anchor));
+                let (gx, gy, gz) = Self::apply_anchor_and_convert_to_global(x, y, z, anchor);
+                return Ok((gx, gy, gz, 60));
+            }
+            // Then try m61
+            if let Some(anchor) = anchor_list.iter().find(|a| a.dst_area_no == 61) {
+                let (gx, gy, gz) = Self::apply_anchor_and_convert_to_global(x, y, z, anchor);
+                return Ok((gx, gy, gz, 61));
             }
         }
         
-        // Case 3: Use pre-computed path to m60
-        if let Some(path) = self.paths_to_m60.get(&key) {
-            return Ok(self.apply_path_to_m60(x, y, z, path));
+        // Case 3: Use pre-computed path to global map
+        if let Some(path) = self.paths_to_global.get(&key) {
+            let (gx, gy, gz) = self.apply_path_to_global(x, y, z, path);
+            let global_map_area = path.final_global_tile.0;
+            return Ok((gx, gy, gz, global_map_area));
         }
         
         Err(TransformError::UnknownMap(Self::format_map_id(map_id)))
@@ -392,12 +409,12 @@ impl WorldPositionTransformer {
     
     /// Apply an anchor transformation and convert to global coordinates
     fn apply_anchor_and_convert_to_global(x: f32, y: f32, z: f32, anchor: &Anchor) -> (f32, f32, f32) {
-        // Calculate position local to the destination m60 tile
+        // Calculate position local to the destination global map tile (m60 or m61)
         let local_x = x - anchor.src_pos.0 + anchor.dst_pos.0;
         let local_y = y - anchor.src_pos.1 + anchor.dst_pos.1;
         let local_z = z - anchor.src_pos.2 + anchor.dst_pos.2;
         
-        // Convert to global using the m60 grid formula
+        // Convert to global using the global map grid formula (works for both m60 and m61)
         let gx = local_x + (anchor.dst_grid_x as f32) * 256.0;
         let gy = local_y;
         let gz = local_z + (anchor.dst_grid_z as f32) * 256.0;
@@ -405,8 +422,8 @@ impl WorldPositionTransformer {
         (gx, gy, gz)
     }
     
-    /// Apply a pre-computed path to transform coordinates to global m60 coordinates
-    fn apply_path_to_m60(&self, x: f32, y: f32, z: f32, path: &PathToM60) -> (f32, f32, f32) {
+    /// Apply a pre-computed path to transform coordinates to global map coordinates
+    fn apply_path_to_global(&self, x: f32, y: f32, z: f32, path: &PathToGlobalMap) -> (f32, f32, f32) {
         let mut current_x = x;
         let mut current_y = y;
         let mut current_z = z;
@@ -419,9 +436,9 @@ impl WorldPositionTransformer {
             current_z = current_z - anchor.src_pos.2 + anchor.dst_pos.2;
         }
         
-        // The last step should have brought us to an m60 tile
-        // Apply the grid formula using the final m60 tile coordinates
-        let (_, final_grid_x, final_grid_z) = path.final_m60_tile;
+        // The last step should have brought us to a global map tile (m60 or m61)
+        // Apply the grid formula using the final global map tile coordinates
+        let (_, final_grid_x, final_grid_z) = path.final_global_tile;
         let gx = current_x + (final_grid_x as f32) * 256.0;
         let gy = current_y;
         let gz = current_z + (final_grid_z as f32) * 256.0;
@@ -574,7 +591,7 @@ mod tests {
     }
     
     #[test]
-    fn test_bfs_finds_path_to_m60() {
+    fn test_bfs_finds_path_to_global() {
         // Create a chain: m10_01_00_00 -> m10_00_00_00 -> m60_40_35_00
         let mut anchors: HashMap<(u8, u8, u8), Vec<Anchor>> = HashMap::new();
         
@@ -587,7 +604,7 @@ mod tests {
             dst_pos: (100.0, 50.0, 100.0),
         }]);
         
-        // m10_01_00_00 -> m10_00_00_00 (no direct m60 link)
+        // m10_01_00_00 -> m10_00_00_00 (no direct global map link)
         anchors.insert((10, 1, 0), vec![Anchor {
             src_pos: (0.0, 0.0, 0.0),
             dst_area_no: 10,
@@ -597,18 +614,18 @@ mod tests {
         }]);
         
         // BFS should find path from m10_01_00_00 to m60
-        let path = WorldPositionTransformer::bfs_find_path_to_m60((10, 1, 0), &anchors);
+        let path = WorldPositionTransformer::bfs_find_path_to_global((10, 1, 0), &anchors);
         
-        assert!(path.is_some(), "Should find a path from m10_01_00_00 to m60");
+        assert!(path.is_some(), "Should find a path from m10_01_00_00 to global map");
         let path = path.unwrap();
         
         // Path should have 2 steps: m10_01 -> m10_00, m10_00 -> m60
         assert_eq!(path.steps.len(), 2, "Path should have 2 steps");
-        assert_eq!(path.final_m60_tile, (60, 40, 35), "Should end at m60_40_35_00");
+        assert_eq!(path.final_global_tile, (60, 40, 35), "Should end at m60_40_35_00");
     }
     
     #[test]
-    fn test_precompute_paths_to_m60() {
+    fn test_precompute_paths_to_global() {
         // Create a chain: m10_01_00_00 -> m10_00_00_00 -> m60_40_35_00
         let mut anchors: HashMap<(u8, u8, u8), Vec<Anchor>> = HashMap::new();
         
@@ -621,7 +638,7 @@ mod tests {
             dst_pos: (100.0, 50.0, 100.0),
         }]);
         
-        // m10_01_00_00 -> m10_00_00_00 (no direct m60 link)
+        // m10_01_00_00 -> m10_00_00_00 (no direct global map link)
         anchors.insert((10, 1, 0), vec![Anchor {
             src_pos: (0.0, 0.0, 0.0),
             dst_area_no: 10,
@@ -630,15 +647,15 @@ mod tests {
             dst_pos: (-514.0, 28.0, 200.0),
         }]);
         
-        let paths = WorldPositionTransformer::precompute_paths_to_m60(&anchors);
+        let paths = WorldPositionTransformer::precompute_paths_to_global(&anchors);
         
         // m10_00_00_00 has direct link, should NOT be in paths
         assert!(!paths.contains_key(&(10, 0, 0)), 
-            "Tile with direct m60 link should not have pre-computed path");
+            "Tile with direct global map link should not have pre-computed path");
         
         // m10_01_00_00 has no direct link, should be in paths
         assert!(paths.contains_key(&(10, 1, 0)), 
-            "Tile without direct m60 link should have pre-computed path");
+            "Tile without direct global map link should have pre-computed path");
     }
     
     #[test]
@@ -665,11 +682,11 @@ mod tests {
         }]);
         
         // Pre-compute paths
-        let paths_to_m60 = WorldPositionTransformer::precompute_paths_to_m60(&anchors);
+        let paths_to_global = WorldPositionTransformer::precompute_paths_to_global(&anchors);
         
         let transformer = WorldPositionTransformer {
             anchors,
-            paths_to_m60,
+            paths_to_global,
         };
         
         // Convert from m10_01_00_00
@@ -692,10 +709,10 @@ mod tests {
     
     #[test]
     fn test_no_path_found() {
-        // Create an isolated tile with no path to m60
+        // Create an isolated tile with no path to global map
         let mut anchors: HashMap<(u8, u8, u8), Vec<Anchor>> = HashMap::new();
         
-        // m99_00_00_00 -> m99_01_00_00 (circular, no m60)
+        // m99_00_00_00 -> m99_01_00_00 (circular, no global map)
         anchors.insert((99, 0, 0), vec![Anchor {
             src_pos: (0.0, 0.0, 0.0),
             dst_area_no: 99,
@@ -704,8 +721,42 @@ mod tests {
             dst_pos: (10.0, 0.0, 10.0),
         }]);
         
-        let path = WorldPositionTransformer::bfs_find_path_to_m60((99, 0, 0), &anchors);
+        let path = WorldPositionTransformer::bfs_find_path_to_global((99, 0, 0), &anchors);
         assert!(path.is_none(), "Should not find path for isolated tile");
+    }
+    
+    #[test]
+    fn test_bfs_finds_path_to_m61() {
+        // Test that BFS can find paths to m61 as well
+        let mut anchors: HashMap<(u8, u8, u8), Vec<Anchor>> = HashMap::new();
+        
+        // m20_00_00_00 -> m61_XX_YY_00 (direct link to m61)
+        anchors.insert((20, 0, 0), vec![Anchor {
+            src_pos: (0.0, 0.0, 0.0),
+            dst_area_no: 61,
+            dst_grid_x: 10,
+            dst_grid_z: 15,
+            dst_pos: (100.0, 50.0, 100.0),
+        }]);
+        
+        // m20_01_00_00 -> m20_00_00_00 (no direct global map link)
+        anchors.insert((20, 1, 0), vec![Anchor {
+            src_pos: (0.0, 0.0, 0.0),
+            dst_area_no: 20,
+            dst_grid_x: 0,
+            dst_grid_z: 0,
+            dst_pos: (-514.0, 28.0, 200.0),
+        }]);
+        
+        // BFS should find path from m20_01_00_00 to m61
+        let path = WorldPositionTransformer::bfs_find_path_to_global((20, 1, 0), &anchors);
+        
+        assert!(path.is_some(), "Should find a path from m20_01_00_00 to m61");
+        let path = path.unwrap();
+        
+        // Path should have 2 steps: m20_01 -> m20_00, m20_00 -> m61
+        assert_eq!(path.steps.len(), 2, "Path should have 2 steps");
+        assert_eq!(path.final_global_tile.0, 61, "Should end at m61");
     }
 }
 

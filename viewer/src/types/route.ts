@@ -7,6 +7,7 @@ export interface RoutePoint {
   global_z: number;
   map_id: number;
   map_id_str: string;
+  global_map_id: number; // 60 for Lands Between, 61 for Shadow Realm
   timestamp_ms: number;
 }
 
