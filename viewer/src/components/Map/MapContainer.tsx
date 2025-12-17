@@ -88,6 +88,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     const startMarkerRef = useRef<L.CircleMarker | null>(null);
     const endMarkerRef = useRef<L.CircleMarker | null>(null);
     const transitionMarkersRef = useRef<L.Marker[]>([]);
+    
+    // Store pending zoom target to apply after map switch
+    const pendingZoomRef = useRef<{ point: RoutePoint; mapId: string } | null>(null);
 
     const [activeMapId, setActiveMapId] = useState<string>(DEFAULT_MAP_ID);
     const [transitions, setTransitions] = useState<MapTransition[]>([]);
@@ -149,9 +152,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       transitionMarkersRef.current = [];
     }, []);
 
-    // Switch to a different map
+    // Switch to a different map, optionally centering on a destination point
     const switchMap = useCallback(
-      (targetMapId: string) => {
+      (targetMapId: string, destinationPoint?: RoutePoint) => {
         const map = mapRef.current;
         if (!map) return;
 
@@ -204,7 +207,21 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         const imageBounds = new L.LatLngBounds(imageSouthWest, imageNorthEast);
 
         map.setMaxBounds(imageBounds.pad(0.02));
-        map.fitBounds(imageBounds);
+
+        // If a destination point is provided, store it for zooming after render
+        console.log('switchMap called with destinationPoint:', destinationPoint);
+        if (destinationPoint && isValidPoint(destinationPoint)) {
+          // Store the pending zoom - it will be applied after the route is drawn
+          pendingZoomRef.current = { point: destinationPoint, mapId: targetMapId };
+          console.log('Stored pending zoom for:', targetMapId);
+          // Still fit bounds initially, zoom will be applied after render
+          map.fitBounds(imageBounds);
+        } else {
+          console.log('No valid destination point, fitting to bounds');
+          pendingZoomRef.current = null;
+          // No destination point, fit to full image bounds
+          map.fitBounds(imageBounds);
+        }
 
         setActiveMapId(targetMapId);
       },
@@ -474,6 +491,31 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       console.log(
         `Route drawn on ${config.name}: ${segments.length} segments, ${totalPoints} points`
       );
+
+      // Apply pending zoom if there is one for this map
+      if (pendingZoomRef.current && pendingZoomRef.current.mapId === activeMapId) {
+        const pendingPoint = pendingZoomRef.current.point;
+        const pixel = gameToPixelForMap(
+          pendingPoint.global_x,
+          pendingPoint.global_z,
+          config
+        );
+        console.log('Applying pending zoom. Pixel:', pixel);
+        
+        // Check if pixel is within reasonable bounds
+        if (pixel.x >= 0 && pixel.x <= config.width && pixel.y >= 0 && pixel.y <= config.height) {
+          const destLatLng = pixelToLatLng(pixel.x, pixel.y, config);
+          const targetZoom = Math.max(1, config.maxZoom - 2);
+          
+          console.log('Zooming to:', destLatLng, 'at zoom:', targetZoom);
+          map.setView(destLatLng, targetZoom, { animate: false });
+        } else {
+          console.warn('Pending zoom pixel out of bounds:', pixel, 'Map size:', config.width, 'x', config.height);
+        }
+        
+        // Clear the pending zoom
+        pendingZoomRef.current = null;
+      }
     }, [route, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng]);
 
     // Add transition markers for other maps
@@ -533,6 +575,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         let pointToUse: RoutePoint | null = null;
         let isForward = false; // true = forward (→), false = backward (←)
 
+        // Determine the destination point to zoom to on the target map
+        let destinationPointForZoom: RoutePoint | null = null;
+
         if (fromPrefix === activeMapId) {
           // We're on the source map - show forward marker at last point on this map
           showMarker = true;
@@ -540,6 +585,8 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           labelText = `Continue to ${transition.toMapName}`;
           pointToUse = transition.point;
           isForward = true;
+          // When going forward, zoom to the first point on the destination map
+          destinationPointForZoom = transition.destinationPoint;
         } else if (toPrefix === activeMapId) {
           // We're on the destination map - show backward marker at first point on this map
           showMarker = true;
@@ -547,6 +594,8 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           labelText = `Return to ${transition.fromMapName}`;
           pointToUse = transition.destinationPoint;
           isForward = false;
+          // When going backward, zoom to the last point on the source map
+          destinationPointForZoom = transition.point;
         }
 
         if (!showMarker || !pointToUse) {
@@ -588,12 +637,19 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
         const marker = L.marker(latLng, { icon }).addTo(map);
 
+        // Prepare destination point data for the popup event - use URL encoding for safe HTML embedding
+        const destPointDataEncoded = encodeURIComponent(JSON.stringify({
+          mapId: targetMapId,
+          global_x: destinationPointForZoom?.global_x,
+          global_z: destinationPointForZoom?.global_z,
+        }));
+
         // Bind popup with click action
         marker.bindPopup(
           `<div style="text-align: center;">
             <b>Map Transition</b><br>
             <span style="color: #666;">${labelText}</span><br>
-            <button onclick="window.dispatchEvent(new CustomEvent('switchMap', { detail: '${targetMapId}' }))"
+            <button onclick="window.dispatchEvent(new CustomEvent('switchMapWithPoint', { detail: JSON.parse(decodeURIComponent('${destPointDataEncoded}')) }))"
               style="
                 margin-top: 8px;
                 padding: 6px 12px;
@@ -609,9 +665,10 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           </div>`
         );
 
-        // Also handle direct click
+        // Handle direct click on marker - switch map and zoom to destination
         marker.on('click', () => {
-          switchMap(targetMapId);
+          console.log('Marker clicked! targetMapId:', targetMapId, 'destinationPointForZoom:', destinationPointForZoom);
+          switchMap(targetMapId, destinationPointForZoom || undefined);
         });
 
         transitionMarkersRef.current.push(marker);
@@ -620,18 +677,58 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
     // Listen for switchMap events from popups
     useEffect(() => {
+      // Handle old-style event (just map ID string)
       const handleSwitchMap = (event: CustomEvent<string>) => {
         switchMap(event.detail);
+      };
+
+      // Handle new-style event with destination point
+      interface SwitchMapEventData {
+        mapId: string;
+        global_x?: number;
+        global_z?: number;
+      }
+      const handleSwitchMapWithPoint = (event: CustomEvent<SwitchMapEventData>) => {
+        const data = event.detail;
+        console.log('switchMapWithPoint event received:', data);
+        if (data.global_x !== undefined && data.global_z !== undefined) {
+          // Create a minimal RoutePoint-like object for zooming
+          const destPoint: RoutePoint = {
+            x: 0,
+            y: 0,
+            z: 0,
+            global_x: data.global_x,
+            global_y: 0,
+            global_z: data.global_z,
+            map_id: 0,
+            map_id_str: '',
+            global_map_id: 0,
+            timestamp_ms: 0,
+          };
+          console.log('Created destPoint:', destPoint);
+          switchMap(data.mapId, destPoint);
+        } else {
+          console.log('No coordinates in event, switching without zoom');
+          switchMap(data.mapId);
+        }
       };
 
       window.addEventListener(
         'switchMap',
         handleSwitchMap as EventListener
       );
+      window.addEventListener(
+        'switchMapWithPoint',
+        handleSwitchMapWithPoint as EventListener
+      );
       return () => {
         window.removeEventListener(
           'switchMap',
           handleSwitchMap as EventListener
+        );
+        window.removeEventListener(
+          'switchMapWithPoint',
+          handleSwitchMapWithPoint as EventListener
         );
       };
     }, [switchMap]);
