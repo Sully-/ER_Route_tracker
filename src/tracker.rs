@@ -142,19 +142,10 @@ impl RouteTracker {
                 .map(|t| t.elapsed().as_millis() as u64)
                 .unwrap_or(0);
             
-            // Convert to global coordinates and get the global map ID
-            let (global_x, global_y, global_z, global_map_id) = self.transformer
-                .local_to_world_with_global_map(map_id, x, y, z)
-                .unwrap_or_else(|_| {
-                    // Fallback: if conversion fails, determine global map from map_id
-                    let (area_no, _, _, _) = WorldPositionTransformer::parse_map_id(map_id);
-                    let fallback_global_map = if area_no == 60 || area_no == 61 {
-                        area_no
-                    } else {
-                        60 // Default to m60 if unknown
-                    };
-                    (x, y, z, fallback_global_map)
-                });
+            // Convert to global coordinates
+            let (global_x, global_y, global_z) = self.transformer
+                .local_to_world_first(map_id, x, y, z)
+                .unwrap_or((x, y, z)); // Fallback to local if conversion fails
             
             let map_id_str = WorldPositionTransformer::format_map_id(map_id);
             
@@ -167,7 +158,6 @@ impl RouteTracker {
                 global_z,
                 map_id,
                 map_id_str,
-                global_map_id,
                 timestamp_ms,
             });
             

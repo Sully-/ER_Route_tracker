@@ -1,9 +1,25 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Route } from '../types/route';
 
 export function useRouteLoader() {
   const [route, setRoute] = useState<Route | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-load test route if URL has ?test parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('test')) {
+      fetch('./test_route.json')
+        .then(res => res.json())
+        .then((data: Route) => {
+          console.log('Auto-loaded test route:', data.name);
+          setRoute(data);
+        })
+        .catch(err => {
+          console.error('Failed to auto-load test route:', err);
+        });
+    }
+  }, []);
 
   const loadRoute = useCallback((file: File) => {
     const reader = new FileReader();

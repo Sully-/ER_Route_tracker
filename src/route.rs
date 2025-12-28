@@ -29,9 +29,6 @@ pub struct RoutePoint {
     pub map_id: u32,
     /// Map ID as human-readable string
     pub map_id_str: String,
-    /// Global map area number (60 for Lands Between, 61 for Shadow Realm)
-    /// This indicates which global map the coordinates belong to after conversion
-    pub global_map_id: u8,
     /// Timestamp in milliseconds from start of recording
     pub timestamp_ms: u64,
 }

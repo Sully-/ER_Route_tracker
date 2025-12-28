@@ -23,7 +23,7 @@
 // =============================================================================
 
 mod config;
-mod coordinate_transformer;
+pub mod coordinate_transformer;
 mod route;
 mod tracker;
 mod ui;

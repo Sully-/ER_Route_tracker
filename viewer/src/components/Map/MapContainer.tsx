@@ -5,10 +5,11 @@ import {
   forwardRef,
   useImperativeHandle,
   useCallback,
+  useMemo,
 } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Route, RoutePoint } from '../../types/route';
+import { Route } from '../../types/route';
 import { gameToPixelForMap } from '../../utils/coordinateTransform';
 import {
   MapConfig,
@@ -17,11 +18,12 @@ import {
 } from '../../utils/calibration';
 import {
   detectMapTransitions,
+  filterPointsByMap,
   getInitialMap,
-  isValidPoint,
-  getDisplayMapId,
   MapTransition,
 } from '../../utils/routeAnalysis';
+import { useMapIcons } from '../../hooks/useMapIcons';
+import { MapIcon, getIconPrimaryText } from '../../types/mapIcons';
 
 export interface MapContainerHandle {
   focusRoute: () => void;
@@ -31,69 +33,28 @@ interface MapContainerProps {
   route: Route | null;
 }
 
-// Helper to group consecutive points on the same map into segments
-// This ensures we don't draw lines between non-consecutive points
-function getConsecutiveSegments(
-  route: Route,
-  mapId: string
-): RoutePoint[][] {
-  if (!route.points || route.points.length === 0) {
-    return [];
-  }
-
-  const segments: RoutePoint[][] = [];
-  let currentSegment: RoutePoint[] = [];
-
-  for (const point of route.points) {
-    // Skip invalid points
-    if (!isValidPoint(point)) {
-      // If we have a segment in progress, end it
-      if (currentSegment.length > 0) {
-        segments.push(currentSegment);
-        currentSegment = [];
-      }
-      continue;
-    }
-
-    const pointMapId = getDisplayMapId(point);
-    
-    if (pointMapId === mapId) {
-      // Point belongs to the target map, add to current segment
-      currentSegment.push(point);
-    } else {
-      // Point belongs to another map, end current segment if any
-      if (currentSegment.length > 0) {
-        segments.push(currentSegment);
-        currentSegment = [];
-      }
-    }
-  }
-
-  // Don't forget the last segment
-  if (currentSegment.length > 0) {
-    segments.push(currentSegment);
-  }
-
-  return segments;
-}
-
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
   ({ route }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
-    const routeLayersRef = useRef<L.Polyline[]>([]); // Array for multiple segments
-    const glowLayersRef = useRef<L.Polyline[]>([]); // Array for multiple segments
-    const teleportLinesRef = useRef<L.Polyline[]>([]); // Dashed lines for teleports between segments
+    const routeLayerRef = useRef<L.Polyline | null>(null);
+    const glowLayerRef = useRef<L.Polyline | null>(null);
     const startMarkerRef = useRef<L.CircleMarker | null>(null);
     const endMarkerRef = useRef<L.CircleMarker | null>(null);
     const transitionMarkersRef = useRef<L.Marker[]>([]);
-    
-    // Store pending zoom target to apply after map switch
-    const pendingZoomRef = useRef<{ point: RoutePoint; mapId: string } | null>(null);
+    const teleportMarkersRef = useRef<L.Marker[]>([]);
+    const segmentPolylinesRef = useRef<L.Polyline[]>([]);
+    const iconMarkersRef = useRef<L.Marker[]>([]);
+    const iconLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
     const [activeMapId, setActiveMapId] = useState<string>(DEFAULT_MAP_ID);
     const [transitions, setTransitions] = useState<MapTransition[]>([]);
+    const [showIcons, setShowIcons] = useState<boolean>(true);
+    const [pendingZoomTarget, setPendingZoomTarget] = useState<{ x: number; z: number } | null>(null);
+
+    // Load map icons
+    const { icons, isLoading: iconsLoading } = useMapIcons({ mapId: activeMapId });
 
     // Get current map config
     const getActiveConfig = useCallback((): MapConfig => {
@@ -118,24 +79,14 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       const map = mapRef.current;
       if (!map) return;
 
-      // Clear all route polylines (multiple segments)
-      routeLayersRef.current.forEach((layer) => {
-        map.removeLayer(layer);
-      });
-      routeLayersRef.current = [];
-
-      // Clear all glow polylines (multiple segments)
-      glowLayersRef.current.forEach((layer) => {
-        map.removeLayer(layer);
-      });
-      glowLayersRef.current = [];
-
-      // Clear teleport/jump lines between segments
-      teleportLinesRef.current.forEach((layer) => {
-        map.removeLayer(layer);
-      });
-      teleportLinesRef.current = [];
-
+      if (routeLayerRef.current) {
+        map.removeLayer(routeLayerRef.current);
+        routeLayerRef.current = null;
+      }
+      if (glowLayerRef.current) {
+        map.removeLayer(glowLayerRef.current);
+        glowLayerRef.current = null;
+      }
       if (startMarkerRef.current) {
         map.removeLayer(startMarkerRef.current);
         startMarkerRef.current = null;
@@ -150,11 +101,77 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         map.removeLayer(marker);
       });
       transitionMarkersRef.current = [];
+
+      // Clear teleport markers
+      teleportMarkersRef.current.forEach((marker) => {
+        map.removeLayer(marker);
+      });
+      teleportMarkersRef.current = [];
+
+      // Clear segment polylines
+      segmentPolylinesRef.current.forEach((polyline) => {
+        map.removeLayer(polyline);
+      });
+      segmentPolylinesRef.current = [];
     }, []);
 
-    // Switch to a different map, optionally centering on a destination point
+    // Clear all icon markers
+    const clearIconMarkers = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (iconLayerGroupRef.current) {
+        map.removeLayer(iconLayerGroupRef.current);
+        iconLayerGroupRef.current = null;
+      }
+      iconMarkersRef.current = [];
+    }, []);
+
+    // Cache for Leaflet icons
+    const iconCache = useMemo(() => new Map<number, L.Icon>(), []);
+
+    // Get or create a Leaflet icon for a given iconId
+    const getLeafletIcon = useCallback(
+      (iconId: number): L.Icon => {
+        if (iconCache.has(iconId)) {
+          return iconCache.get(iconId)!;
+        }
+
+        const icon = L.icon({
+          iconUrl: `./map_icons/icon_${iconId}.png`,
+          iconSize: [48, 48],
+          iconAnchor: [24, 24],
+          popupAnchor: [0, -24],
+        });
+
+        iconCache.set(iconId, icon);
+        return icon;
+      },
+      [iconCache]
+    );
+
+    // Create popup content for an icon
+    const createIconPopup = useCallback((icon: MapIcon): string => {
+      const primaryText = getIconPrimaryText(icon);
+      const secondaryTexts = icon.texts
+        .filter((t) => t.Text !== null && t.Text !== primaryText)
+        .map((t) => `<div style="color: ${t.TextType === 0 ? '#fff' : '#aaa'};">${t.Text}</div>`)
+        .join('');
+
+      return `
+        <div style="text-align: center; min-width: 120px;">
+          <b style="font-size: 14px;">${primaryText || 'Location'}</b>
+          ${secondaryTexts ? `<div style="margin-top: 4px; font-size: 12px;">${secondaryTexts}</div>` : ''}
+          <div style="margin-top: 6px; font-size: 10px; color: #888;">
+            (${icon.globalX.toFixed(1)}, ${icon.globalZ.toFixed(1)})
+          </div>
+        </div>
+      `;
+    }, []);
+
+    // Switch to a different map, optionally zooming to a specific game coordinate
     const switchMap = useCallback(
-      (targetMapId: string, destinationPoint?: RoutePoint) => {
+      (targetMapId: string, zoomToGameCoord?: { x: number; z: number }) => {
         const map = mapRef.current;
         if (!map) return;
 
@@ -207,22 +224,17 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         const imageBounds = new L.LatLngBounds(imageSouthWest, imageNorthEast);
 
         map.setMaxBounds(imageBounds.pad(0.02));
-
-        // If a destination point is provided, store it for zooming after render
-        console.log('switchMap called with destinationPoint:', destinationPoint);
-        if (destinationPoint && isValidPoint(destinationPoint)) {
-          // Store the pending zoom - it will be applied after the route is drawn
-          pendingZoomRef.current = { point: destinationPoint, mapId: targetMapId };
-          console.log('Stored pending zoom for:', targetMapId);
-          // Still fit bounds initially, zoom will be applied after render
-          map.fitBounds(imageBounds);
-        } else {
-          console.log('No valid destination point, fitting to bounds');
-          pendingZoomRef.current = null;
-          // No destination point, fit to full image bounds
-          map.fitBounds(imageBounds);
+        
+        // Set map bounds initially
+        map.fitBounds(imageBounds);
+        
+        // Store the zoom target for later application (after route is drawn)
+        if (zoomToGameCoord) {
+          console.log(`Setting pending zoom target: (${zoomToGameCoord.x}, ${zoomToGameCoord.z})`);
+          setPendingZoomTarget(zoomToGameCoord);
         }
-
+        
+        // Set activeMapId to trigger route redraw
         setActiveMapId(targetMapId);
       },
       [activeMapId]
@@ -241,6 +253,14 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         zoomSnap: 0.5,
         zoomDelta: 0.5,
       });
+
+      // Create custom panes for z-index control
+      // Default Leaflet panes: tilePane(200), overlayPane(400), shadowPane(500), markerPane(600), tooltipPane(650), popupPane(700)
+      map.createPane('mapIconsPane');
+      map.getPane('mapIconsPane')!.style.zIndex = '450'; // Below default markers
+      
+      map.createPane('teleportPane');
+      map.getPane('teleportPane')!.style.zIndex = '750'; // Above default markers, below popups
 
       const southWest = map.unproject([0, config.paddedSize], config.maxZoom);
       const northEast = map.unproject([config.paddedSize, 0], config.maxZoom);
@@ -306,114 +326,196 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
       const config = getActiveConfig();
 
-      // Get consecutive segments for the active map
-      // This ensures we don't draw lines between non-consecutive points
-      const segments = getConsecutiveSegments(route, activeMapId);
+      // Filter points for the active map and remove invalid points (0, 0, 0)
+      const filteredPoints = filterPointsByMap(route, activeMapId).filter(
+        (p) => !(p.global_x === 0 && p.global_z === 0)
+      );
 
-      if (segments.length === 0) {
-        console.log(`No segments for map ${activeMapId}`);
+      if (filteredPoints.length < 2) {
+        console.log(`No points for map ${activeMapId}`);
         // Still show transition markers
         addTransitionMarkers(map, config);
         return;
       }
 
-      // Draw each segment separately
-      let totalPoints = 0;
-      for (const segment of segments) {
-        if (segment.length < 2) {
-          // Single point segments don't need a line
-          totalPoints += segment.length;
-          continue;
+      // Split route into segments at teleport points (large distance jumps)
+      const TELEPORT_THRESHOLD = 500; // Distance in game units to consider as teleport
+      const segments: L.LatLng[][] = [];
+      let currentSegment: L.LatLng[] = [];
+      
+      // Track teleport points for markers
+      interface TeleportPoint {
+        departureLatLng: L.LatLng;
+        arrivalLatLng: L.LatLng;
+        distance: number;
+      }
+      const teleportPoints: TeleportPoint[] = [];
+
+      for (let i = 0; i < filteredPoints.length; i++) {
+        const p = filteredPoints[i];
+        const pixel = gameToPixelForMap(p.global_x, p.global_z, config);
+        const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+
+        if (i > 0) {
+          const prevP = filteredPoints[i - 1];
+          const dx = p.global_x - prevP.global_x;
+          const dz = p.global_z - prevP.global_z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          if (distance > TELEPORT_THRESHOLD) {
+            // Teleport detected - record departure and arrival points
+            const prevPixel = gameToPixelForMap(prevP.global_x, prevP.global_z, config);
+            const departureLatLng = pixelToLatLng(prevPixel.x, prevPixel.y, config);
+            
+            teleportPoints.push({
+              departureLatLng,
+              arrivalLatLng: latLng,
+              distance,
+            });
+            
+            // Start new segment
+            if (currentSegment.length > 0) {
+              segments.push(currentSegment);
+            }
+            currentSegment = [latLng];
+            console.log(`Teleport detected: ${distance.toFixed(0)} units`);
+            continue;
+          }
         }
 
-        // Convert game coordinates to Leaflet coordinates for this segment
-        const latLngs = segment.map((p) => {
-          const pixel = gameToPixelForMap(p.global_x, p.global_z, config);
-          return pixelToLatLng(pixel.x, pixel.y, config);
-        });
-
-        // Glow effect (wider, semi-transparent)
-        const glowLayer = L.polyline(latLngs, {
-          color: '#00ff00',
-          weight: 12,
-          opacity: 0.3,
-          lineJoin: 'round',
-          lineCap: 'round',
-        }).addTo(map);
-        glowLayersRef.current.push(glowLayer);
-
-        // Main route polyline
-        const routeLayer = L.polyline(latLngs, {
-          color: '#00ff00',
-          weight: 6,
-          opacity: 0.8,
-          lineJoin: 'round',
-          lineCap: 'round',
-        }).addTo(map);
-        routeLayersRef.current.push(routeLayer);
-
-        totalPoints += segment.length;
+        currentSegment.push(latLng);
       }
 
-      // Draw dashed teleport lines between consecutive segments on the same map
-      // This shows jumps/teleports that happened while staying on the same global map
-      for (let i = 0; i < segments.length - 1; i++) {
-        const currentSegment = segments[i];
-        const nextSegment = segments[i + 1];
+      // Push last segment
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+      }
 
-        if (currentSegment.length === 0 || nextSegment.length === 0) continue;
+      // Draw each segment as separate polylines
+      const allLatLngs: L.LatLng[] = [];
+      segments.forEach((segment) => {
+        if (segment.length >= 2) {
+          // Glow effect for this segment
+          const glow = L.polyline(segment, {
+            color: '#00ff00',
+            weight: 12,
+            opacity: 0.3,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }).addTo(map);
+          segmentPolylinesRef.current.push(glow);
 
-        // Get the last point of current segment and first point of next segment
-        const fromPoint = currentSegment[currentSegment.length - 1];
-        const toPoint = nextSegment[0];
+          // Main route for this segment
+          const main = L.polyline(segment, {
+            color: '#00ff00',
+            weight: 6,
+            opacity: 0.8,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }).addTo(map);
+          segmentPolylinesRef.current.push(main);
+        }
+        allLatLngs.push(...segment);
+      });
 
-        // Convert to pixel coordinates
-        const fromPixel = gameToPixelForMap(fromPoint.global_x, fromPoint.global_z, config);
-        const toPixel = gameToPixelForMap(toPoint.global_x, toPoint.global_z, config);
+      // Store first segment's polyline for focus functionality
+      if (segments.length > 0 && segments[0].length >= 2) {
+        routeLayerRef.current = L.polyline(segments[0], {
+          color: 'transparent',
+          weight: 0,
+        });
+      }
 
-        // Convert to LatLng
-        const fromLatLng = pixelToLatLng(fromPixel.x, fromPixel.y, config);
-        const toLatLng = pixelToLatLng(toPixel.x, toPixel.y, config);
-
-        // Draw dashed line for teleport/jump
-        const teleportLine = L.polyline([fromLatLng, toLatLng], {
-          color: '#ffaa00', // Orange color for teleport
-          weight: 4,
-          opacity: 0.7,
-          dashArray: '10, 10', // Dashed pattern
-          lineJoin: 'round',
-          lineCap: 'round',
-        }).addTo(map);
-        teleportLinesRef.current.push(teleportLine);
-
-        // Add arrow marker at the destination to show direction
-        const arrowIcon = L.divIcon({
-          className: 'teleport-arrow',
+      // Add teleport markers (departure = orange, arrival = purple)
+      teleportPoints.forEach((tp, index) => {
+        // Departure marker (orange - leaving this spot)
+        const departureIcon = L.divIcon({
+          className: 'teleport-departure',
           html: `<div style="
-            width: 0;
-            height: 0;
-            border-left: 8px solid transparent;
-            border-right: 8px solid transparent;
-            border-bottom: 12px solid #ffaa00;
-            transform: rotate(${Math.atan2(
-              toPixel.y - fromPixel.y,
-              toPixel.x - fromPixel.x
-            ) * 180 / Math.PI + 90}deg);
-            filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
-          "></div>`,
-          iconSize: [16, 16],
-          iconAnchor: [8, 8],
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            border: 4px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 12px rgba(249, 115, 22, 1), 0 0 20px rgba(249, 115, 22, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            cursor: pointer;
+            z-index: 10000;
+            position: relative;
+          ">↗</div>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
         });
 
-        const arrowMarker = L.marker(toLatLng, { icon: arrowIcon }).addTo(map);
-        transitionMarkersRef.current.push(arrowMarker);
-      }
+        const departureMarker = L.marker(tp.departureLatLng, { 
+          icon: departureIcon,
+          pane: 'teleportPane', // Use custom pane with higher z-index
+          zIndexOffset: 2000, // Additional offset within pane
+        }).addTo(map);
+        teleportMarkersRef.current.push(departureMarker);
+        
+        // Click on departure → pan to arrival (without changing zoom)
+        departureMarker.on('click', () => {
+          console.log('Departure clicked, panning to arrival:', tp.arrivalLatLng);
+          map.panTo(tp.arrivalLatLng);
+        });
+        
+        // Tooltip on hover instead of popup
+        departureMarker.bindTooltip(`⚡ TP #${index + 1} Départ → Clic pour aller à l'arrivée`, {
+          direction: 'top',
+          offset: [0, -10],
+        });
 
-      // Find global start and end points across all segments
-      const allPoints = segments.flat();
-      const firstPoint = allPoints[0];
-      const lastPoint = allPoints[allPoints.length - 1];
-      
+        // Arrival marker (purple - arriving at this spot)
+        const arrivalIcon = L.divIcon({
+          className: 'teleport-arrival',
+          html: `<div style="
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #9333ea, #7c3aed);
+            border: 4px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 12px rgba(147, 51, 234, 1), 0 0 20px rgba(147, 51, 234, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            cursor: pointer;
+            z-index: 10000;
+            position: relative;
+          ">↙</div>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18],
+        });
+
+        const arrivalMarker = L.marker(tp.arrivalLatLng, { 
+          icon: arrivalIcon,
+          pane: 'teleportPane', // Use custom pane with higher z-index
+          zIndexOffset: 2000, // Additional offset within pane
+        }).addTo(map);
+        teleportMarkersRef.current.push(arrivalMarker);
+        
+        // Click on arrival → pan to departure (without changing zoom)
+        arrivalMarker.on('click', () => {
+          console.log('Arrival clicked, panning to departure:', tp.departureLatLng);
+          map.panTo(tp.departureLatLng);
+        });
+        
+        // Tooltip on hover instead of popup
+        arrivalMarker.bindTooltip(`⚡ TP #${index + 1} Arrivée → Clic pour aller au départ`, {
+          direction: 'top',
+          offset: [0, -10],
+        });
+      });
+
+      // Find start and end points for this map segment
+      const firstPoint = filteredPoints[0];
+      const lastPoint = filteredPoints[filteredPoints.length - 1];
       const isGlobalStart =
         route.points[0].map_id_str === firstPoint.map_id_str &&
         route.points[0].timestamp_ms === firstPoint.timestamp_ms;
@@ -423,24 +525,16 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         route.points[route.points.length - 1].timestamp_ms ===
           lastPoint.timestamp_ms;
 
-      // Check if there's a transition marker at the start/end points
-      const hasTransitionAtStart = transitions.some(
-        (t) =>
-          (t.fromMapId === activeMapId &&
-            t.point.timestamp_ms === firstPoint.timestamp_ms) ||
-          (t.toMapId === activeMapId &&
-            t.destinationPoint.timestamp_ms === firstPoint.timestamp_ms)
+      // Check if start/end are transition points (we'll show transition markers instead)
+      const isStartFromTransition = transitions.some(
+        (t) => t.toMapId === activeMapId
       );
-      const hasTransitionAtEnd = transitions.some(
-        (t) =>
-          (t.fromMapId === activeMapId &&
-            t.point.timestamp_ms === lastPoint.timestamp_ms) ||
-          (t.toMapId === activeMapId &&
-            t.destinationPoint.timestamp_ms === lastPoint.timestamp_ms)
+      const isEndToTransition = transitions.some(
+        (t) => t.fromMapId === activeMapId
       );
 
-      // Start marker (only if no transition marker at this location)
-      if (!hasTransitionAtStart) {
+      // Start marker (only show if global start OR not coming from a transition)
+      if (isGlobalStart || !isStartFromTransition) {
         const startPixel = gameToPixelForMap(
           firstPoint.global_x,
           firstPoint.global_z,
@@ -455,6 +549,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             weight: 3,
             opacity: 1,
             fillOpacity: 1,
+            pane: 'teleportPane', // Above map icons
           }
         ).addTo(map);
         startMarkerRef.current.bindPopup(
@@ -462,8 +557,8 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         );
       }
 
-      // End marker (only if no transition marker at this location)
-      if (!hasTransitionAtEnd) {
+      // End marker (only show if global end OR not going to a transition)
+      if (isGlobalEnd || !isEndToTransition) {
         const endPixel = gameToPixelForMap(
           lastPoint.global_x,
           lastPoint.global_z,
@@ -478,6 +573,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             weight: 3,
             opacity: 1,
             fillOpacity: 1,
+            pane: 'teleportPane', // Above map icons
           }
         ).addTo(map);
         endMarkerRef.current.bindPopup(
@@ -489,269 +585,263 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       addTransitionMarkers(map, config);
 
       console.log(
-        `Route drawn on ${config.name}: ${segments.length} segments, ${totalPoints} points`
+        `Route drawn on ${config.name}: ${filteredPoints.length} points`
       );
 
-      // Apply pending zoom if there is one for this map
-      if (pendingZoomRef.current && pendingZoomRef.current.mapId === activeMapId) {
-        const pendingPoint = pendingZoomRef.current.point;
-        const pixel = gameToPixelForMap(
-          pendingPoint.global_x,
-          pendingPoint.global_z,
-          config
-        );
-        console.log('Applying pending zoom. Pixel:', pixel);
-        
-        // Check if pixel is within reasonable bounds
-        if (pixel.x >= 0 && pixel.x <= config.width && pixel.y >= 0 && pixel.y <= config.height) {
-          const destLatLng = pixelToLatLng(pixel.x, pixel.y, config);
-          const targetZoom = Math.max(1, config.maxZoom - 2);
-          
-          console.log('Zooming to:', destLatLng, 'at zoom:', targetZoom);
-          map.setView(destLatLng, targetZoom, { animate: false });
-        } else {
-          console.warn('Pending zoom pixel out of bounds:', pixel, 'Map size:', config.width, 'x', config.height);
-        }
-        
-        // Clear the pending zoom
-        pendingZoomRef.current = null;
+      // Apply pending zoom target if any (after everything is drawn)
+      if (pendingZoomTarget) {
+        const pixel = gameToPixelForMap(pendingZoomTarget.x, pendingZoomTarget.z, config);
+        const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+        console.log(`Applying pending zoom to: (${pendingZoomTarget.x}, ${pendingZoomTarget.z})`);
+        // Use setTimeout to ensure map is fully ready
+        setTimeout(() => {
+          map.setView(latLng, 4);
+        }, 50);
+        // Clear the pending target
+        setPendingZoomTarget(null);
       }
-    }, [route, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng]);
+    }, [route, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget]);
 
-    // Add transition markers for other maps
+    // Add transition markers for other maps (using same style as teleport markers)
     const addTransitionMarkers = (map: L.Map, config: MapConfig) => {
       if (transitions.length === 0) return;
 
-      // Create forward transition icon (go to next map)
-      const forwardIcon = L.divIcon({
-        className: 'transition-marker-forward',
+      // Departure icon (orange - leaving this map)
+      const departureIcon = L.divIcon({
+        className: 'map-transition-departure',
         html: `<div style="
           width: 36px;
           height: 36px;
-          background: linear-gradient(135deg, #10b981, #3b82f6);
-          border: 3px solid #ffffff;
+          background: linear-gradient(135deg, #f97316, #ea580c);
+          border: 4px solid #ffffff;
           border-radius: 50%;
-          box-shadow: 0 0 12px rgba(16, 185, 129, 0.7);
+          box-shadow: 0 0 12px rgba(249, 115, 22, 1), 0 0 20px rgba(249, 115, 22, 0.6);
           display: flex;
           align-items: center;
           justify-content: center;
-          cursor: pointer;
           font-size: 18px;
-          font-weight: bold;
-        ">→</div>`,
+          color: white;
+          cursor: pointer;
+          z-index: 10000;
+          position: relative;
+        ">↗</div>`,
         iconSize: [36, 36],
         iconAnchor: [18, 18],
       });
 
-      // Create backward transition icon (go back to previous map)
-      const backwardIcon = L.divIcon({
-        className: 'transition-marker-backward',
+      // Arrival icon (purple - arriving on this map)
+      const arrivalIcon = L.divIcon({
+        className: 'map-transition-arrival',
         html: `<div style="
           width: 36px;
           height: 36px;
-          background: linear-gradient(135deg, #f59e0b, #ef4444);
-          border: 3px solid #ffffff;
+          background: linear-gradient(135deg, #9333ea, #7c3aed);
+          border: 4px solid #ffffff;
           border-radius: 50%;
-          box-shadow: 0 0 12px rgba(245, 158, 11, 0.7);
+          box-shadow: 0 0 12px rgba(147, 51, 234, 1), 0 0 20px rgba(147, 51, 234, 0.6);
           display: flex;
           align-items: center;
           justify-content: center;
-          cursor: pointer;
           font-size: 18px;
-          font-weight: bold;
-        ">←</div>`,
+          color: white;
+          cursor: pointer;
+          z-index: 10000;
+          position: relative;
+        ">↙</div>`,
         iconSize: [36, 36],
         iconAnchor: [18, 18],
       });
 
-      transitions.forEach((transition) => {
+      transitions.forEach((transition, index) => {
         // Determine which map this transition is visible on
         const fromPrefix = transition.fromMapId;
         const toPrefix = transition.toMapId;
 
-        let showMarker = false;
-        let targetMapId = '';
-        let labelText = '';
-        let pointToUse: RoutePoint | null = null;
-        let isForward = false; // true = forward (→), false = backward (←)
-
-        // Determine the destination point to zoom to on the target map
-        let destinationPointForZoom: RoutePoint | null = null;
-
         if (fromPrefix === activeMapId) {
-          // We're on the source map - show forward marker at last point on this map
-          showMarker = true;
-          targetMapId = toPrefix;
-          labelText = `Continue to ${transition.toMapName}`;
-          pointToUse = transition.point;
-          isForward = true;
-          // When going forward, zoom to the first point on the destination map
-          destinationPointForZoom = transition.destinationPoint;
+          // We're on the "from" map - show DEPARTURE marker (orange ↗)
+          // Find the last valid point BEFORE the transition (transition.pointIndex is the first point on new map)
+          let departurePoint = null;
+          for (let i = transition.pointIndex - 1; i >= 0; i--) {
+            const p = route!.points[i];
+            if (p.global_x !== 0 || p.global_z !== 0) {
+              departurePoint = p;
+              break;
+            }
+          }
+          
+          if (!departurePoint) {
+            console.warn(`No valid departure point found for transition ${index}`);
+            return;
+          }
+          
+          const pixel = gameToPixelForMap(departurePoint.global_x, departurePoint.global_z, config);
+          const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+
+          const marker = L.marker(latLng, { 
+            icon: departureIcon,
+            pane: 'teleportPane',
+            zIndexOffset: 2000,
+          }).addTo(map);
+
+          // Find arrival point on target map (first valid point after transition)
+          const arrivalPointIndex = route!.points.findIndex(
+            (p) => p.timestamp_ms > transition.point.timestamp_ms && 
+                   p.global_x !== 0 && p.global_z !== 0
+          );
+          const arrivalCoord = arrivalPointIndex !== -1 
+            ? { x: route!.points[arrivalPointIndex].global_x, z: route!.points[arrivalPointIndex].global_z }
+            : undefined;
+          
+          console.log(`Transition ${index}: arrivalPointIndex=${arrivalPointIndex}, arrivalCoord=`, arrivalCoord);
+
+          // Tooltip instead of popup for easier clicking
+          marker.bindTooltip(
+            `🌍 Transition #${index + 1} → ${transition.toMapName}<br>Clic pour y aller`,
+            { direction: 'top', offset: [0, -10] }
+          );
+
+          // Store arrivalCoord for click handler (avoid stale closure issues)
+          const targetCoord = arrivalCoord;
+
+          // Click to switch map and zoom to arrival
+          marker.on('click', () => {
+            console.log(`Transition departure clicked, switching to ${toPrefix}, targetCoord=`, targetCoord);
+            switchMap(toPrefix, targetCoord);
+          });
+
+          transitionMarkersRef.current.push(marker);
         } else if (toPrefix === activeMapId) {
-          // We're on the destination map - show backward marker at first point on this map
-          showMarker = true;
-          targetMapId = fromPrefix;
-          labelText = `Return to ${transition.fromMapName}`;
-          pointToUse = transition.destinationPoint;
-          isForward = false;
-          // When going backward, zoom to the last point on the source map
-          destinationPointForZoom = transition.point;
+          // We're on the "to" map - show ARRIVAL marker (purple ↙)
+          // Use the NEXT point after transition (first point on this map)
+          const nextPointIndex = route!.points.findIndex(
+            (p) => p.timestamp_ms > transition.point.timestamp_ms && 
+                   p.global_x !== 0 && p.global_z !== 0
+          );
+          
+          if (nextPointIndex !== -1) {
+            const arrivalPoint = route!.points[nextPointIndex];
+            const pixel = gameToPixelForMap(arrivalPoint.global_x, arrivalPoint.global_z, config);
+            const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+
+            // Find departure point on source map (last valid point before transition)
+            let departureCoord: { x: number; z: number } | undefined;
+            for (let i = transition.pointIndex - 1; i >= 0; i--) {
+              const p = route!.points[i];
+              if (p.global_x !== 0 || p.global_z !== 0) {
+                departureCoord = { x: p.global_x, z: p.global_z };
+                break;
+              }
+            }
+
+            const marker = L.marker(latLng, { 
+              icon: arrivalIcon,
+              pane: 'teleportPane',
+              zIndexOffset: 2000,
+            }).addTo(map);
+
+            // Tooltip instead of popup for easier clicking
+            marker.bindTooltip(
+              `🌍 Transition #${index + 1} ← ${transition.fromMapName}<br>Clic pour y retourner`,
+              { direction: 'top', offset: [0, -10] }
+            );
+
+            // Click to switch map and zoom to departure
+            marker.on('click', () => {
+              console.log(`Transition arrival clicked, switching to ${fromPrefix}`);
+              switchMap(fromPrefix, departureCoord);
+            });
+
+            transitionMarkersRef.current.push(marker);
+          }
         }
-
-        if (!showMarker || !pointToUse) {
-          return; // Skip - not on a relevant map
-        }
-
-        const point = pointToUse;
-        
-        // Skip if point is invalid (m255 or zero coordinates)
-        if (!isValidPoint(point)) {
-          console.warn('Skipping transition marker for invalid point:', point);
-          return; // Skip this transition
-        }
-        
-        // Always use the config of the map where we're currently viewing (activeMapId)
-        // The point's coordinates are global, so we convert them using the current map's calibration
-        const pixel = gameToPixelForMap(
-          point.global_x,
-          point.global_z,
-          config
-        );
-        
-        // Skip if pixel coordinates are invalid (NaN or out of bounds)
-        if (isNaN(pixel.x) || isNaN(pixel.y) || pixel.x < 0 || pixel.y < 0) {
-          console.warn('Skipping transition marker for invalid pixel coordinates:', pixel);
-          return; // Skip this transition
-        }
-        
-        // Check if pixel is within current map bounds (with some margin)
-        const margin = 500; // Allow markers slightly outside bounds
-        if (pixel.x < -margin || pixel.x > config.width + margin || 
-            pixel.y < -margin || pixel.y > config.height + margin) {
-          // Point is not visible on current map, skip marker
-          return;
-        }
-        
-        const latLng = pixelToLatLng(pixel.x, pixel.y, config);
-        const icon = isForward ? forwardIcon : backwardIcon;
-
-        const marker = L.marker(latLng, { icon }).addTo(map);
-
-        // Prepare destination point data for the popup event - use URL encoding for safe HTML embedding
-        const destPointDataEncoded = encodeURIComponent(JSON.stringify({
-          mapId: targetMapId,
-          global_x: destinationPointForZoom?.global_x,
-          global_z: destinationPointForZoom?.global_z,
-        }));
-
-        // Bind popup with click action
-        marker.bindPopup(
-          `<div style="text-align: center;">
-            <b>Map Transition</b><br>
-            <span style="color: #666;">${labelText}</span><br>
-            <button onclick="window.dispatchEvent(new CustomEvent('switchMapWithPoint', { detail: JSON.parse(decodeURIComponent('${destPointDataEncoded}')) }))"
-              style="
-                margin-top: 8px;
-                padding: 6px 12px;
-                background: linear-gradient(135deg, #9333ea, #3b82f6);
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-weight: bold;
-              ">
-              Switch Map
-            </button>
-          </div>`
-        );
-
-        // Handle direct click on marker - switch map and zoom to destination
-        marker.on('click', () => {
-          console.log('Marker clicked! targetMapId:', targetMapId, 'destinationPointForZoom:', destinationPointForZoom);
-          switchMap(targetMapId, destinationPointForZoom || undefined);
-        });
-
-        transitionMarkersRef.current.push(marker);
       });
     };
 
     // Listen for switchMap events from popups
     useEffect(() => {
-      // Handle old-style event (just map ID string)
       const handleSwitchMap = (event: CustomEvent<string>) => {
         switchMap(event.detail);
-      };
-
-      // Handle new-style event with destination point
-      interface SwitchMapEventData {
-        mapId: string;
-        global_x?: number;
-        global_z?: number;
-      }
-      const handleSwitchMapWithPoint = (event: CustomEvent<SwitchMapEventData>) => {
-        const data = event.detail;
-        console.log('switchMapWithPoint event received:', data);
-        if (data.global_x !== undefined && data.global_z !== undefined) {
-          // Create a minimal RoutePoint-like object for zooming
-          const destPoint: RoutePoint = {
-            x: 0,
-            y: 0,
-            z: 0,
-            global_x: data.global_x,
-            global_y: 0,
-            global_z: data.global_z,
-            map_id: 0,
-            map_id_str: '',
-            global_map_id: 0,
-            timestamp_ms: 0,
-          };
-          console.log('Created destPoint:', destPoint);
-          switchMap(data.mapId, destPoint);
-        } else {
-          console.log('No coordinates in event, switching without zoom');
-          switchMap(data.mapId);
-        }
       };
 
       window.addEventListener(
         'switchMap',
         handleSwitchMap as EventListener
       );
-      window.addEventListener(
-        'switchMapWithPoint',
-        handleSwitchMapWithPoint as EventListener
-      );
       return () => {
         window.removeEventListener(
           'switchMap',
           handleSwitchMap as EventListener
         );
-        window.removeEventListener(
-          'switchMapWithPoint',
-          handleSwitchMapWithPoint as EventListener
-        );
       };
     }, [switchMap]);
+
+    // Draw map icons when icons or active map changes
+    useEffect(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      // Clear existing icons
+      clearIconMarkers();
+
+      // Don't draw if icons are hidden or still loading
+      if (!showIcons || iconsLoading || icons.length === 0) {
+        return;
+      }
+
+      const config = getActiveConfig();
+
+      // Create a layer group for all icons
+      iconLayerGroupRef.current = L.layerGroup();
+
+      // Add markers for each icon
+      icons.forEach((icon) => {
+        try {
+          const pixel = gameToPixelForMap(icon.globalX, icon.globalZ, config);
+          const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+
+          const leafletIcon = getLeafletIcon(icon.iconId);
+          const marker = L.marker(latLng, { 
+            icon: leafletIcon,
+            pane: 'mapIconsPane', // Use custom pane with lower z-index
+          });
+          
+          marker.bindPopup(createIconPopup(icon));
+          
+          iconMarkersRef.current.push(marker);
+          iconLayerGroupRef.current!.addLayer(marker);
+        } catch (err) {
+          // Skip icons that fail to render
+          console.warn(`Failed to render icon ${icon.id}:`, err);
+        }
+      });
+
+      // Add layer group to map
+      iconLayerGroupRef.current.addTo(map);
+
+      console.log(`Rendered ${iconMarkersRef.current.length} icons on ${config.name}`);
+
+      return () => {
+        clearIconMarkers();
+      };
+    }, [
+      icons,
+      showIcons,
+      iconsLoading,
+      activeMapId,
+      getActiveConfig,
+      pixelToLatLng,
+      getLeafletIcon,
+      createIconPopup,
+      clearIconMarkers,
+    ]);
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
       focusRoute: () => {
-        if (mapRef.current && routeLayersRef.current.length > 0) {
-          // Combine bounds from all route segments
-          let bounds: L.LatLngBounds | null = null;
-          for (const layer of routeLayersRef.current) {
-            const layerBounds = layer.getBounds();
-            if (bounds) {
-              bounds = bounds.extend(layerBounds);
-            } else {
-              bounds = layerBounds;
-            }
-          }
-          if (bounds) {
-            mapRef.current.fitBounds(bounds, {
-              padding: [50, 50],
-            });
-          }
+        if (mapRef.current && routeLayerRef.current) {
+          mapRef.current.fitBounds(routeLayerRef.current.getBounds(), {
+            padding: [50, 50],
+          });
         }
       },
     }));
@@ -809,6 +899,40 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
                 {mapConfig.name}
               </button>
             ))}
+          </div>
+          {/* Icon toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => setShowIcons(!showIcons)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px',
+                transition: 'all 0.2s ease',
+                background: showIcons
+                  ? 'linear-gradient(135deg, #f59e0b, #ef4444)'
+                  : 'rgba(255, 255, 255, 0.1)',
+                color: 'white',
+                boxShadow: showIcons
+                  ? '0 2px 10px rgba(245, 158, 11, 0.4)'
+                  : 'none',
+              }}
+            >
+              {showIcons ? '🗺️ Icônes ON' : '🗺️ Icônes OFF'}
+            </button>
+            {showIcons && !iconsLoading && (
+              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
+                {icons.length} icônes
+              </span>
+            )}
+            {iconsLoading && (
+              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
+                Chargement...
+              </span>
+            )}
           </div>
           {/* Transitions info */}
           {transitions.length > 0 && (

@@ -362,15 +362,6 @@ impl WorldPositionTransformer {
     /// 2. Calculate position local to destination global map tile: P_local = (x,y,z) - src + dst
     /// 3. Convert to global using global map grid: P_global = P_local + (dstGridX * 256, 0, dstGridZ * 256)
     pub fn local_to_world_first(&self, map_id: u32, x: f32, y: f32, z: f32) -> Result<(f32, f32, f32), TransformError> {
-        let result = self.local_to_world_with_global_map(map_id, x, y, z)?;
-        Ok((result.0, result.1, result.2))
-    }
-    
-    /// Convert local coordinates to world coordinates and return the global map ID
-    /// 
-    /// Returns (global_x, global_y, global_z, global_map_area_no)
-    /// where global_map_area_no is 60 for Lands Between or 61 for Shadow Realm
-    pub fn local_to_world_with_global_map(&self, map_id: u32, x: f32, y: f32, z: f32) -> Result<(f32, f32, f32, u8), TransformError> {
         let (area_no, grid_x, grid_z, _) = Self::parse_map_id(map_id);
         
         // Case 1: Global map tiles (m60|61_XX_YY_00) - simple grid formula (60 == base game, 61 == DLC)
@@ -378,7 +369,7 @@ impl WorldPositionTransformer {
             let gx = x + (grid_x as f32) * 256.0;
             let gy = y;
             let gz = z + (grid_z as f32) * 256.0;
-            return Ok((gx, gy, gz, area_no));
+            return Ok((gx, gy, gz));
         }
         
         let key = (area_no, grid_x, grid_z);
@@ -387,21 +378,17 @@ impl WorldPositionTransformer {
         if let Some(anchor_list) = self.anchors.get(&key) {
             // Try to find a direct anchor to m60 first
             if let Some(anchor) = anchor_list.iter().find(|a| a.dst_area_no == 60) {
-                let (gx, gy, gz) = Self::apply_anchor_and_convert_to_global(x, y, z, anchor);
-                return Ok((gx, gy, gz, 60));
+                return Ok(Self::apply_anchor_and_convert_to_global(x, y, z, anchor));
             }
             // Then try m61
             if let Some(anchor) = anchor_list.iter().find(|a| a.dst_area_no == 61) {
-                let (gx, gy, gz) = Self::apply_anchor_and_convert_to_global(x, y, z, anchor);
-                return Ok((gx, gy, gz, 61));
+                return Ok(Self::apply_anchor_and_convert_to_global(x, y, z, anchor));
             }
         }
         
         // Case 3: Use pre-computed path to global map
         if let Some(path) = self.paths_to_global.get(&key) {
-            let (gx, gy, gz) = self.apply_path_to_global(x, y, z, path);
-            let global_map_area = path.final_global_tile.0;
-            return Ok((gx, gy, gz, global_map_area));
+            return Ok(self.apply_path_to_global(x, y, z, path));
         }
         
         Err(TransformError::UnknownMap(Self::format_map_id(map_id)))

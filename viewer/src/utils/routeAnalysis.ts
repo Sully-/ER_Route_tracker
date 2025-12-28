@@ -7,8 +7,7 @@ export interface MapTransition {
   toMapId: string;
   fromMapName: string;
   toMapName: string;
-  point: RoutePoint; // Last point on source map
-  destinationPoint: RoutePoint; // First point on destination map
+  point: RoutePoint;
 }
 
 export interface MapSegment {
@@ -19,42 +18,19 @@ export interface MapSegment {
   points: RoutePoint[];
 }
 
-// Get the display map ID for a point (m60 or m61)
-// Uses global_map_id from the tracker if available, otherwise defaults to m60
+// Get the display map ID for a point using global_map_id field
+// 60 = Lands Between (m60), 61 = Shadow Realm (m61)
 export function getDisplayMapId(point: RoutePoint): string {
-  // Use global_map_id if available (new format from tracker)
-  if (point.global_map_id !== undefined) {
-    if (point.global_map_id === 60) {
-      return 'm60';
-    } else if (point.global_map_id === 61) {
-      return 'm61';
-    }
+  if (point.global_map_id === 61) {
+    return 'm61';
   }
-  
-  // Fallback: use map_id_str prefix for old route files
-  // Extract prefix from map_id_str (e.g., "m60_42_36_00" -> "m60")
-  if (point.map_id_str && point.map_id_str.length >= 3) {
-    const prefix = point.map_id_str.substring(0, 3);
-    if (prefix === 'm60' || prefix === 'm61') {
-      return prefix;
-    }
-  }
-  
-  // Default to m60
-  return DEFAULT_MAP_ID;
+  return 'm60'; // Default to Lands Between
 }
 
-// Detect the display map for a point
+// Detect the display map config for a point
 export function detectDisplayMapForPoint(point: RoutePoint): MapConfig {
   const mapId = getDisplayMapId(point);
   return MAP_CONFIGS[mapId] || MAP_CONFIGS[DEFAULT_MAP_ID];
-}
-
-// Check if a point is valid (not m255_255_255_255)
-export function isValidPoint(point: RoutePoint): boolean {
-  return point.map_id_str !== 'm255_255_255_255' && 
-         point.global_x !== 0 && 
-         point.global_z !== 0;
 }
 
 // Detect all map transitions in a route based on global coordinates
@@ -64,53 +40,27 @@ export function detectMapTransitions(route: Route): MapTransition[] {
   }
 
   const transitions: MapTransition[] = [];
-  // Find first valid point
-  let firstValidIndex = 0;
-  while (firstValidIndex < route.points.length && !isValidPoint(route.points[firstValidIndex])) {
-    firstValidIndex++;
-  }
-  
-  if (firstValidIndex >= route.points.length) {
-    return [];
-  }
+  let currentMapId = getDisplayMapId(route.points[0]);
 
-  let currentMapId = getDisplayMapId(route.points[firstValidIndex]);
-  let lastValidIndex = firstValidIndex;
-
-  for (let i = firstValidIndex + 1; i < route.points.length; i++) {
+  for (let i = 1; i < route.points.length; i++) {
     const point = route.points[i];
-    
-    // Skip invalid points (m255)
-    if (!isValidPoint(point)) {
-      continue;
-    }
-
     const newMapId = getDisplayMapId(point);
 
     if (newMapId !== currentMapId) {
       const fromConfig = MAP_CONFIGS[currentMapId] || MAP_CONFIGS[DEFAULT_MAP_ID];
       const toConfig = MAP_CONFIGS[newMapId] || MAP_CONFIGS[DEFAULT_MAP_ID];
 
-      // Use the last valid point before transition, or current point if it's valid
-      const transitionPoint = route.points[lastValidIndex];
-
-      // Find first valid point on destination map (for marker positioning)
-      let firstPointOnDestMap = point; // Current point is the first on destination map
-      
       transitions.push({
         pointIndex: i,
         fromMapId: currentMapId,
         toMapId: newMapId,
         fromMapName: fromConfig.name,
         toMapName: toConfig.name,
-        point: transitionPoint, // Last point on source map
-        destinationPoint: firstPointOnDestMap, // First point on destination map
+        point: point,
       });
 
       currentMapId = newMapId;
     }
-    
-    lastValidIndex = i;
   }
 
   return transitions;
@@ -182,9 +132,7 @@ export function filterPointsByMap(
     return [];
   }
 
-  return route.points.filter(
-    (point) => isValidPoint(point) && getDisplayMapId(point) === mapId
-  );
+  return route.points.filter((point) => getDisplayMapId(point) === mapId);
 }
 
 // Get the initial display map for a route (first point's map based on coordinates)

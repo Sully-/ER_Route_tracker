@@ -15,6 +15,10 @@ name = "route_tracking"
 name = "route-tracker-injector"
 path = "src/injector.rs"
 
+[[bin]]
+name = "convert-map-icons"
+path = "src/bin/convert_map_icons.rs"
+
 # =============================================================================
 # DEPENDENCIES
 # =============================================================================
