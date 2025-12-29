@@ -4726,7 +4726,7 @@
       "globalX": 11939.99,
       "globalY": 259.02,
       "globalZ": 11707.03,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 400000,
@@ -4749,7 +4749,7 @@
       "globalX": 11201.3,
       "globalY": 295.05,
       "globalZ": 11834.26,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 400100,
@@ -4772,7 +4772,7 @@
       "globalX": 13009.79,
       "globalY": 80.01,
       "globalZ": 11119.53,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 400200,
@@ -4795,7 +4795,7 @@
       "globalX": 11419.28,
       "globalY": 259.77,
       "globalZ": 11157.57,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 410000,
@@ -4818,7 +4818,7 @@
       "globalX": 12754.64,
       "globalY": 304.6,
       "globalZ": 10982.5,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 410100,
@@ -4841,7 +4841,7 @@
       "globalX": 11861.77,
       "globalY": 76.52,
       "globalZ": 10244.58,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 410200,
@@ -4864,7 +4864,7 @@
       "globalX": 12171.65,
       "globalY": 269.26,
       "globalZ": 10823.34,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 420000,
@@ -4887,7 +4887,7 @@
       "globalX": 12352.52,
       "globalY": 357.94,
       "globalZ": 11169.48,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 420200,
@@ -4910,7 +4910,7 @@
       "globalX": 12248.12,
       "globalY": 353.06,
       "globalZ": 12195.57,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 420300,
@@ -4933,7 +4933,7 @@
       "globalX": 11693.557,
       "globalY": 163.677,
       "globalZ": 11407.799,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 430000,
@@ -4956,7 +4956,7 @@
       "globalX": 12188.08,
       "globalY": 360.71,
       "globalZ": 10512.55,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 430100,
@@ -4979,7 +4979,7 @@
       "globalX": 12359.67,
       "globalY": 95.89,
       "globalZ": 10447.74,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 430101,
@@ -12445,7 +12445,7 @@
       "globalX": 11939.99,
       "globalY": 259.02,
       "globalZ": 11707.03,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 40000,
@@ -12468,7 +12468,7 @@
       "globalX": 11201.3,
       "globalY": 295.05,
       "globalZ": 11834.26,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 40010,
@@ -12491,7 +12491,7 @@
       "globalX": 13009.79,
       "globalY": 80.01,
       "globalZ": 11119.53,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 40020,
@@ -12514,7 +12514,7 @@
       "globalX": 11419.28,
       "globalY": 259.77,
       "globalZ": 11157.57,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 41000,
@@ -12537,7 +12537,7 @@
       "globalX": 12754.64,
       "globalY": 304.6,
       "globalZ": 10982.5,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 41010,
@@ -12560,7 +12560,7 @@
       "globalX": 11861.77,
       "globalY": 76.52,
       "globalZ": 10244.58,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 41020,
@@ -12583,7 +12583,7 @@
       "globalX": 12171.65,
       "globalY": 269.26,
       "globalZ": 10823.34,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 42000,
@@ -12606,7 +12606,7 @@
       "globalX": 12352.52,
       "globalY": 357.94,
       "globalZ": 11169.48,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 42020,
@@ -12629,7 +12629,7 @@
       "globalX": 12248.12,
       "globalY": 353.06,
       "globalZ": 12195.57,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 42030,
@@ -12652,7 +12652,7 @@
       "globalX": 11693.557,
       "globalY": 163.677,
       "globalZ": 11407.799,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 43000,
@@ -12675,7 +12675,7 @@
       "globalX": 12188.08,
       "globalY": 360.71,
       "globalZ": 10512.55,
-      "mapId": "m60",
+      "mapId": "m61",
       "texts": [
         {
           "TextId": 43010,
@@ -19274,7 +19274,7 @@
   "convertedCount": 813,
   "failedCount": 3,
   "failedMaps": [
-    "m12_06_00_00",
-    "m42_01_00_00"
+    "m42_01_00_00",
+    "m12_06_00_00"
   ]
 }

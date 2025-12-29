@@ -200,10 +200,10 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         );
         const tileBounds = new L.LatLngBounds(southWest, northEast);
 
-        // Add new tile layer
-        const cacheBuster = Date.now();
+        // Add new tile layer (cache buster only in dev mode)
+        const cacheBuster = import.meta.env.DEV ? `?v=${Date.now()}` : '';
         tileLayerRef.current = L.tileLayer(
-          `${newConfig.tilePath}/{z}/{x}/{y}.jpg?v=${cacheBuster}`,
+          `${newConfig.tilePath}/{z}/{x}/{y}.jpg${cacheBuster}`,
           {
             minZoom: 0,
             maxZoom: newConfig.maxZoom,
@@ -267,10 +267,10 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       const northEast = map.unproject([config.paddedSize, 0], config.maxZoom);
       const tileBounds = new L.LatLngBounds(southWest, northEast);
 
-      // Cache buster for tiles
-      const cacheBuster = Date.now();
+      // Cache buster for tiles (only in dev mode)
+      const cacheBuster = import.meta.env.DEV ? `?v=${Date.now()}` : '';
       tileLayerRef.current = L.tileLayer(
-        `${config.tilePath}/{z}/{x}/{y}.jpg?v=${cacheBuster}`,
+        `${config.tilePath}/{z}/{x}/{y}.jpg${cacheBuster}`,
         {
           minZoom: 0,
           maxZoom: config.maxZoom,

@@ -243,13 +243,14 @@ fn convert_icon(
             // area_no 60 = base game overworld (m60)
             // area_no 61 = DLC overworld (m61)
             // area_no 20-29 = DLC interiors → m61
+            // area_no 40-49 = DLC interiors (catacombs, etc.) → m61
             // All other areas = base game interiors → m60
             let target_map = if icon.area_no == 60 {
                 "m60".to_string()
             } else if icon.area_no == 61 {
                 "m61".to_string()
-            } else if icon.area_no >= 20 && icon.area_no < 30 {
-                // DLC interior maps (area 20-29) always go to m61
+            } else if (icon.area_no >= 20 && icon.area_no < 30) || (icon.area_no >= 40 && icon.area_no < 50) {
+                // DLC interior maps (area 20-29 and 40-49) always go to m61
                 "m61".to_string()
             } else {
                 // Base game interior maps
