@@ -128,17 +128,18 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     }, []);
 
     // Cache for Leaflet icons
-    const iconCache = useMemo(() => new Map<number, L.Icon>(), []);
+    const iconCache = useMemo(() => new Map<number, L.DivIcon>(), []);
 
     // Get or create a Leaflet icon for a given iconId
     const getLeafletIcon = useCallback(
-      (iconId: number): L.Icon => {
+      (iconId: number): L.DivIcon => {
         if (iconCache.has(iconId)) {
           return iconCache.get(iconId)!;
         }
 
-        const icon = L.icon({
-          iconUrl: `./map_icons/icon_${iconId}.png`,
+        const icon = L.divIcon({
+          className: 'map-icon-container',
+          html: `<img src="./map_icons/icon_${iconId}.png" style="max-width: 48px; max-height: 48px; object-fit: contain; display: block;">`,
           iconSize: [48, 48],
           iconAnchor: [24, 24],
           popupAnchor: [0, -24],

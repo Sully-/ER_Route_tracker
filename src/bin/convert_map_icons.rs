@@ -212,7 +212,7 @@ fn main() {
 }
 
 // Icon IDs to exclude from the output
-const EXCLUDED_ICON_IDS: &[u32] = &[83];
+const EXCLUDED_ICON_IDS: &[u32] = &[0, 83];
 
 fn convert_icon(
     icon: &InputMapIcon,

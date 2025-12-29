@@ -10731,22 +10731,6 @@
       ]
     },
     {
-      "id": 111000,
-      "iconId": 0,
-      "eventFlagId": 62820,
-      "areaNo": 60,
-      "gridXNo": 35,
-      "gridZNo": 32,
-      "posX": -341.67,
-      "posY": 66.16,
-      "posZ": -47.78,
-      "globalX": 8618.33,
-      "globalY": 66.16,
-      "globalZ": 8144.22,
-      "mapId": "m60",
-      "texts": []
-    },
-    {
       "id": 130000,
       "iconId": 59,
       "eventFlagId": 62700,
@@ -13925,29 +13909,6 @@
       ]
     },
     {
-      "id": 62345002,
-      "iconId": 0,
-      "eventFlagId": 62254,
-      "areaNo": 60,
-      "gridXNo": 35,
-      "gridZNo": 51,
-      "posX": -63.83,
-      "posY": 431.27,
-      "posZ": -111.63,
-      "globalX": 8896.17,
-      "globalY": 431.27,
-      "globalZ": 12944.37,
-      "mapId": "m60",
-      "texts": [
-        {
-          "TextId": 6200001,
-          "TextType": 0,
-          "Text": "Three Sisters",
-          "Source": "Title_Locations"
-        }
-      ]
-    },
-    {
       "id": 62345100,
       "iconId": 17,
       "eventFlagId": 62245,
@@ -14398,29 +14359,6 @@
           "TextId": 6201500,
           "TextType": 0,
           "Text": "Ainsel River Well",
-          "Source": "Title_Locations"
-        }
-      ]
-    },
-    {
-      "id": 62384700,
-      "iconId": 0,
-      "eventFlagId": 62253,
-      "areaNo": 60,
-      "gridXNo": 38,
-      "gridZNo": 47,
-      "posX": -52.28,
-      "posY": 346.59,
-      "posZ": -72.74,
-      "globalX": 9675.72,
-      "globalY": 346.59,
-      "globalZ": 11959.26,
-      "mapId": "m60",
-      "texts": [
-        {
-          "TextId": 6200000,
-          "TextType": 0,
-          "Text": "Uld Palace Ruins",
           "Source": "Title_Locations"
         }
       ]
@@ -15676,29 +15614,6 @@
       ]
     },
     {
-      "id": 64513700,
-      "iconId": 0,
-      "eventFlagId": 62438,
-      "areaNo": 60,
-      "gridXNo": 47,
-      "gridZNo": 40,
-      "posX": -78.56,
-      "posY": 128.35,
-      "posZ": 110.01,
-      "globalX": 11953.44,
-      "globalY": 128.35,
-      "globalZ": 10350.01,
-      "mapId": "m60",
-      "texts": [
-        {
-          "TextId": 6400000,
-          "TextType": 0,
-          "Text": "Wailing Dunes",
-          "Source": "Title_Locations"
-        }
-      ]
-    },
-    {
       "id": 64513900,
       "iconId": 18,
       "eventFlagId": 62473,
@@ -16459,7 +16374,7 @@
     },
     {
       "id": 68463800,
-      "iconId": 0,
+      "iconId": 256,
       "eventFlagId": 62843,
       "areaNo": 61,
       "gridXNo": 46,
@@ -16505,7 +16420,7 @@
     },
     {
       "id": 68464001,
-      "iconId": 0,
+      "iconId": 259,
       "eventFlagId": 62815,
       "areaNo": 61,
       "gridXNo": 46,
@@ -16528,7 +16443,7 @@
     },
     {
       "id": 68464100,
-      "iconId": 0,
+      "iconId": 256,
       "eventFlagId": 62812,
       "areaNo": 61,
       "gridXNo": 46,
@@ -16597,7 +16512,7 @@
     },
     {
       "id": 68464300,
-      "iconId": 0,
+      "iconId": 259,
       "eventFlagId": 62813,
       "areaNo": 61,
       "gridXNo": 46,
@@ -16620,7 +16535,7 @@
     },
     {
       "id": 68464301,
-      "iconId": 0,
+      "iconId": 260,
       "eventFlagId": 62814,
       "areaNo": 61,
       "gridXNo": 46,
@@ -16735,7 +16650,7 @@
     },
     {
       "id": 68483800,
-      "iconId": 0,
+      "iconId": 259,
       "eventFlagId": 62841,
       "areaNo": 61,
       "gridXNo": 49,
@@ -16781,7 +16696,7 @@
     },
     {
       "id": 68484101,
-      "iconId": 0,
+      "iconId": 257,
       "eventFlagId": 62826,
       "areaNo": 61,
       "gridXNo": 48,
@@ -16850,7 +16765,7 @@
     },
     {
       "id": 68494200,
-      "iconId": 0,
+      "iconId": 259,
       "eventFlagId": 62827,
       "areaNo": 61,
       "gridXNo": 49,
@@ -16867,29 +16782,6 @@
           "TextId": 6815901,
           "TextType": 0,
           "Text": "Elder's Hovel",
-          "Source": "Title_Locations"
-        }
-      ]
-    },
-    {
-      "id": 68503800,
-      "iconId": 0,
-      "eventFlagId": 62840,
-      "areaNo": 61,
-      "gridXNo": 50,
-      "gridZNo": 40,
-      "posX": 86.93,
-      "posY": -76.77,
-      "posZ": -22.53,
-      "globalX": 12886.93,
-      "globalY": -76.77,
-      "globalZ": 10217.47,
-      "mapId": "m61",
-      "texts": [
-        {
-          "TextId": 6830000,
-          "TextType": 0,
-          "Text": "Finger Ruins of Rhia",
           "Source": "Title_Locations"
         }
       ]
@@ -16965,7 +16857,7 @@
     },
     {
       "id": 69464501,
-      "iconId": 0,
+      "iconId": 256,
       "eventFlagId": 62921,
       "areaNo": 61,
       "gridXNo": 46,
@@ -17195,7 +17087,7 @@
     },
     {
       "id": 69494902,
-      "iconId": 0,
+      "iconId": 259,
       "eventFlagId": 62932,
       "areaNo": 61,
       "gridXNo": 49,
@@ -17218,7 +17110,7 @@
     },
     {
       "id": 69504400,
-      "iconId": 0,
+      "iconId": 259,
       "eventFlagId": 62909,
       "areaNo": 61,
       "gridXNo": 50,
@@ -17264,7 +17156,7 @@
     },
     {
       "id": 69504402,
-      "iconId": 0,
+      "iconId": 261,
       "eventFlagId": 62962,
       "areaNo": 61,
       "gridXNo": 50,
@@ -17309,31 +17201,8 @@
       ]
     },
     {
-      "id": 69504800,
-      "iconId": 0,
-      "eventFlagId": 62970,
-      "areaNo": 61,
-      "gridXNo": 50,
-      "gridZNo": 48,
-      "posX": -27.79,
-      "posY": 190.02,
-      "posZ": 122.01,
-      "globalX": 12772.21,
-      "globalY": 190.02,
-      "globalZ": 12410.01,
-      "mapId": "m61",
-      "texts": [
-        {
-          "TextId": 6920001,
-          "TextType": 0,
-          "Text": "Scadutree Base",
-          "Source": "Title_Locations"
-        }
-      ]
-    },
-    {
       "id": 69514400,
-      "iconId": 0,
+      "iconId": 256,
       "eventFlagId": 62961,
       "areaNo": 61,
       "gridXNo": 51,
@@ -17390,31 +17259,8 @@
       ]
     },
     {
-      "id": 69514501,
-      "iconId": 0,
-      "eventFlagId": 62911,
-      "areaNo": 61,
-      "gridXNo": 51,
-      "gridZNo": 45,
-      "posX": -104.2,
-      "posY": 447.56,
-      "posZ": 150.06,
-      "globalX": 12951.8,
-      "globalY": 447.56,
-      "globalZ": 11670.06,
-      "mapId": "m61",
-      "texts": [
-        {
-          "TextId": 6900000,
-          "TextType": 0,
-          "Text": "Finger Ruins of Miyr",
-          "Source": "Title_Locations"
-        }
-      ]
-    },
-    {
       "id": 69514600,
-      "iconId": 0,
+      "iconId": 258,
       "eventFlagId": 62908,
       "areaNo": 61,
       "gridXNo": 51,
@@ -17498,29 +17344,6 @@
       "texts": [
         {
           "TextId": 6935500,
-          "TextType": 0,
-          "Text": "Finger Ruins of Dheo",
-          "Source": "Title_Locations"
-        }
-      ]
-    },
-    {
-      "id": 69534700,
-      "iconId": 0,
-      "eventFlagId": 62940,
-      "areaNo": 61,
-      "gridXNo": 53,
-      "gridZNo": 47,
-      "posX": 86.93,
-      "posY": -76.77,
-      "posZ": -22.53,
-      "globalX": 13654.93,
-      "globalY": -76.77,
-      "globalZ": 12009.47,
-      "mapId": "m61",
-      "texts": [
-        {
-          "TextId": 6930000,
           "TextType": 0,
           "Text": "Finger Ruins of Dheo",
           "Source": "Title_Locations"
@@ -19448,10 +19271,10 @@
     }
   ],
   "totalCount": 894,
-  "convertedCount": 821,
+  "convertedCount": 813,
   "failedCount": 3,
   "failedMaps": [
-    "m42_01_00_00",
-    "m12_06_00_00"
+    "m12_06_00_00",
+    "m42_01_00_00"
   ]
 }
