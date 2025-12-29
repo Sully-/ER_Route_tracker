@@ -34,6 +34,9 @@ export const MAP_CONFIGS: Record<string, MapConfig> = {
       { gameX: 10976.9, gameZ: 7667.36, pixelX: 3933, pixelY: 8851 },    // Morne Moangrave
       { gameX: 13268.46, gameZ: 9686.11, pixelX: 6239, pixelY: 6806 },   // Starscourge Radahn
       { gameX: 13793.61, gameZ: 14142.3, pixelX: 6754, pixelY: 2363 },   // First Church of Marika
+      { gameX: 8416.3, gameZ: 10819.95, pixelX: 1376, pixelY: 5692 },    // Ringleader's Evergaol
+      { gameX: 8612.52, gameZ: 10909.29, pixelX: 1576, pixelY: 5578 },   // Converted Tower
+      { gameX: 9919.3, gameZ: 12719.86, pixelX: 2878, pixelY: 3791 },    // Golden Lineage Evergaol
     ],
   },
   m61: {
