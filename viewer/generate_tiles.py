@@ -51,7 +51,7 @@ def generate_tiles(source_path: str, output_dir: str, tile_size: int = 256):
     
     # Create padded image (center the original on a padded canvas)
     print(f"Creating padded image...")
-    padded = Image.new('RGB', (padded_size, padded_size), (20, 20, 30))  # Dark background
+    padded = Image.new('RGB', (padded_size, padded_size), (26, 26, 46))  # Match site background #1a1a2e
     # Paste at top-left (0, 0) - not centered, to match coordinate system
     padded.paste(source, (0, 0))
     

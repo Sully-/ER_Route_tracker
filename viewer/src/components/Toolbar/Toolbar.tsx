@@ -33,8 +33,6 @@ export default function Toolbar({
 
   return (
     <div className="toolbar">
-      <h1 className="toolbar-title">🗺️ Elden Ring Route Viewer</h1>
-      <span className="alpha-badge">⚠️ ALPHA</span>
       
       <input
         ref={fileInputRef}
@@ -63,7 +61,6 @@ export default function Toolbar({
       >
         🎯 Focus Route
       </button>
-      <span className="toolbar-info">React + Leaflet.js</span>
     </div>
   );
 }

@@ -18,6 +18,9 @@ impl ImguiRenderLoop for RouteTracker {
         // Record position each frame if recording is active
         self.record_position();
         
+        // Stream position to backend if real-time mode is enabled (independent of recording)
+        self.stream_position();
+        
         // NOTE: Hudhook crashes if render() doesn't draw anything.
         // We must always call window().build() even when hidden.
         
@@ -41,6 +44,8 @@ impl ImguiRenderLoop for RouteTracker {
                 self.render_position_section(ui);
                 ui.separator();
                 self.render_recording_section(ui);
+                ui.separator();
+                self.render_streaming_section(ui);
                 self.render_status_message(ui);
                 ui.separator();
                 self.render_keybindings_section(ui);
@@ -65,6 +70,14 @@ impl RouteTracker {
                 self.stop_recording();
             } else {
                 self.start_recording();
+            }
+        }
+        
+        if self.config.keybindings.toggle_streaming.is_just_pressed() {
+            if self.is_streaming {
+                self.stop_streaming();
+            } else {
+                self.start_streaming();
             }
         }
         
@@ -151,6 +164,40 @@ impl RouteTracker {
         }
     }
     
+    /// Render streaming controls section
+    fn render_streaming_section(&mut self, ui: &hudhook::imgui::Ui) {
+        ui.text("=== Streaming ===");
+        
+        // Check if real-time client is configured
+        if self.realtime_client.is_none() {
+            ui.text_colored([1.0, 0.5, 0.0, 1.0], "○ Not configured");
+            ui.text_disabled("Enable real-time mode in config");
+            return;
+        }
+        
+        if self.is_streaming {
+            ui.text_colored([0.0, 1.0, 0.0, 1.0], "● STREAMING");
+            
+            if let Some(stream_start) = self.stream_start_time {
+                let elapsed = stream_start.elapsed();
+                let secs = elapsed.as_secs();
+                let mins = secs / 60;
+                let secs = secs % 60;
+                ui.text(format!("Duration: {:02}:{:02}", mins, secs));
+            }
+            
+            if ui.button("Stop Streaming") {
+                self.stop_streaming();
+            }
+        } else {
+            ui.text("○ Stopped");
+            
+            if ui.button("Start Streaming") {
+                self.start_streaming();
+            }
+        }
+    }
+    
     /// Render status message if any
     fn render_status_message(&self, ui: &hudhook::imgui::Ui) {
         if let Some(status) = self.get_status() {
@@ -164,6 +211,7 @@ impl RouteTracker {
         ui.text("=== Keybindings ===");
         ui.text_disabled(format!("{}: Toggle UI", self.config.keybindings.toggle_ui.name()));
         ui.text_disabled(format!("{}: Start/Stop Recording", self.config.keybindings.toggle_recording.name()));
+        ui.text_disabled(format!("{}: Start/Stop Streaming", self.config.keybindings.toggle_streaming.name()));
         ui.text_disabled(format!("{}: Clear Route", self.config.keybindings.clear_route.name()));
         ui.text_disabled(format!("{}: Save Route", self.config.keybindings.save_route.name()));
     }

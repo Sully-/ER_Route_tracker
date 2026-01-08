@@ -13,17 +13,31 @@ The code was generated through conversational AI assistance ("vibe coding").
 
 ## Current Features
 
-- Full Elden Ring world map with tile-based rendering
-- Load route JSON files recorded by the mod
-- Auto-focus on loaded routes
-- Start (green) and end (red) markers
+### Map Display
+- ✅ Interactive world map with tile-based rendering (Lands Between & Shadow Realm DLC)
+- ✅ Multiple map support with seamless switching
+- ✅ Zoom and pan controls
+- ✅ Map selection buttons
 
+### Route Visualization
+- ✅ Load route JSON files recorded by the mod
+- ✅ Auto-focus on loaded routes
+- ✅ Start (green) and end (red) markers
+- ✅ Route path visualization with glow effect
+- ✅ Teleportation markers (departure/arrival) for intra-map teleports
+- ✅ Inter-map transition markers with automatic map switching
+- ✅ Automatic zoom on map transitions
+
+### Map Icons
+- ✅ Location icons (graces, bosses, merchants, etc.) with popups
+- ✅ Icon visibility toggle
+- ✅ Filtered by active map
+- ✅ Preserved aspect ratio for all icon images
 
 ## Roadmap
 
+- [ ] 🗺️ Underground map support
 - [ ] 📌 Event icons on map (item pickup, death, grace activation...)
-- [ ] 🏰 Location icons (graces, bosses, merchants...)
-- [ ] 🗺️ Underground maps & DLC maps support
 - [ ] ⏱️ Timelapse playback mode
 - [ ] 📡 Real-time live tracking of player position
 
@@ -66,21 +80,32 @@ Or double-click `start_production.bat`
 viewer/
 ├── src/
 │   ├── components/
-│   │   ├── Map/MapContainer.tsx      # Leaflet map with tiles
-│   │   ├── Toolbar/Toolbar.tsx       # Load/Clear/Focus buttons
-│   │   └── RouteInfo/RouteInfo.tsx   # Route statistics panel
+│   │   ├── Map/
+│   │   │   └── MapContainer.tsx      # Main map component with Leaflet
+│   │   ├── Toolbar/
+│   │   │   └── Toolbar.tsx           # Load/Clear/Focus buttons
+│   │   └── RouteInfo/
+│   │       └── RouteInfo.tsx         # Route statistics panel
 │   ├── hooks/
-│   │   └── useRouteLoader.ts         # JSON file loading hook
+│   │   ├── useRouteLoader.ts         # JSON file loading hook
+│   │   └── useMapIcons.ts            # Map icons loading and filtering
 │   ├── utils/
 │   │   ├── coordinateTransform.ts    # Game → Pixel conversion
-│   │   └── calibration.ts            # Calibration points
+│   │   ├── calibration.ts            # Calibration points for m60 & m61
+│   │   └── routeAnalysis.ts          # Route analysis (transitions, segments)
 │   ├── types/
-│   │   └── route.ts                  # TypeScript interfaces
+│   │   ├── route.ts                  # Route TypeScript interfaces
+│   │   └── mapIcons.ts               # Map icons TypeScript interfaces
 │   ├── App.tsx
 │   └── main.tsx
 ├── public/
-│   └── tiles/                        # Map tiles (zoom 0-6)
+│   ├── tiles/                        # Lands Between map tiles (zoom 0-6)
+│   ├── tiles_shadow/                 # Shadow Realm DLC map tiles (zoom 0-5)
+│   ├── map_icons/                    # Icon PNG files (icon_1.png, icon_2.png, ...)
+│   ├── map_data_processed.json       # Processed map icons data (global coordinates)
+│   └── map_data_export.json          # Raw map icons data (local coordinates)
 ├── dist/                             # Production build output
+├── generate_tiles.py                 # Python script to generate map tiles
 ├── package.json
 ├── vite.config.ts
 └── tsconfig.json
@@ -88,27 +113,77 @@ viewer/
 
 ## Regenerating Tiles
 
-If you need to regenerate the map tiles, you'll need:
-1. The source image `fextralife_map.jpg` (15175x14280 px)
-2. Python with Pillow: `pip install Pillow`
+If you need to regenerate the map tiles:
 
-Then run:
+1. Install Python with Pillow: `pip install Pillow`
+2. Prepare source images:
+   - **Lands Between**: `Lands_Between_Name.png` (9645x9119 px)
+   - **Shadow Realm**: (DLC map source image)
+3. Run the tile generation script:
 ```bash
-python generate_tiles.py
+python generate_tiles.py <source_image_path> <output_directory>
+```
+
+Example:
+```bash
+python generate_tiles.py Lands_Between_Name.png public/tiles
 ```
 
 ## Calibration
 
-The viewer uses 4 calibration points to convert game coordinates to pixel coordinates:
+The viewer uses calibration points to convert game coordinates to pixel coordinates for each map.
 
-| Game (X, Z) | Pixel (x, y) |
-|-------------|--------------|
-| 10740.49, 9159.12 | 5847, 11447 |
-| 10704.96, 9296.39 | 5801, 11240 |
-| 10927.56, 9523.99 | 6135, 10886 |
-| 12396.08, 10301.70 | 8434, 9693 |
+### Lands Between (m60)
+7 calibration points (mean error: ~9.7 pixels):
+
+| Location | Game (X, Z) | Pixel (x, y) |
+|----------|-------------|--------------|
+| The First Step | 10739.17, 9161.5 | 3697, 7345 |
+| Morne Moangrave | 10976.9, 7667.36 | 3933, 8851 |
+| Starscourge Radahn | 13268.46, 9686.11 | 6239, 6806 |
+| First Church of Marika | 13793.61, 14142.3 | 6754, 2363 |
+| Ringleader's Evergaol | 8416.3, 10819.95 | 1376, 5692 |
+| Converted Tower | 8612.52, 10909.29 | 1576, 5578 |
+| Golden Lineage Evergaol | 9919.3, 12719.86 | 2878, 3791 |
+
+### Shadow Realm (m61)
+4 calibration points (mean error: ~0.3 pixels):
+
+| Location | Game (X, Z) | Pixel (x, y) |
+|----------|-------------|--------------|
+| Ellac River Downstream | 12074.65, 10523.87 | 1997, 4123 |
+| Scorched Ruins | 11960.21, 10564.6 | 1882, 4083 |
+| Fingerstone Hill | 13269.66, 12291.76 | 3189, 2358 |
+| Cleansing Chamber Anteroom | 11070.19, 11137.88 | 995, 3509 |
 
 To add or modify calibration points, edit `src/utils/calibration.ts`.
+
+## Map Icons
+
+The viewer displays location icons (graces, bosses, merchants, etc.) from `map_data_processed.json`.
+
+### Icon Data
+
+- **Source**: `public/map_data_processed.json` (processed from `map_data_export.json`)
+- **Conversion**: Local coordinates → Global coordinates via Rust script
+- **Images**: PNG files in `public/map_icons/` (e.g., `icon_1.png`, `icon_2.png`)
+- **Filtering**: Icons are filtered by `mapId` field (m60 or m61)
+
+### Regenerating Icon Data
+
+To regenerate `map_data_processed.json` from raw data:
+
+```bash
+# From project root
+cargo run --bin convert-map-icons
+```
+
+This script:
+- Reads `viewer/public/map_data_export.json`
+- Converts local coordinates to global using `WorldPositionTransformer`
+- Filters out excluded icon IDs (currently 0 and 83)
+- Maps AreaNo to display map (m60/m61)
+- Outputs `viewer/public/map_data_processed.json`
 
 ## Route JSON Format
 
@@ -120,6 +195,7 @@ The viewer expects JSON files with this structure:
   "recorded_at": "2025-01-15 14:30:00",
   "point_count": 150,
   "duration_secs": 120.5,
+  "interval_ms": 5000,
   "points": [
     {
       "x": -11.51,
@@ -130,13 +206,17 @@ The viewer expects JSON files with this structure:
       "global_z": 9159.12,
       "map_id": 1862270976,
       "map_id_str": "m60_42_36_00",
+      "global_map_id": 60,
       "timestamp_ms": 0
     }
   ]
 }
 ```
 
-The viewer uses `global_x` and `global_z` for positioning on the map.
+**Fields:**
+- `global_x`, `global_z`: Used for positioning on the map
+- `global_map_id`: Determines which map to display (60 = Lands Between, 61 = Shadow Realm)
+- `map_id_str`: Format is `m{area}_{gridX}_{gridZ}_{sub}`
 
 ## Scripts
 

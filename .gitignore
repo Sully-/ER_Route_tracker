@@ -6,3 +6,7 @@
 /viewer/node_modules/*
 /release/*
 /original_maps/*
+/backend/RouteTracker/bin/Debug/
+*/.idea/
+**/obj/**
+*.DotSettings.user

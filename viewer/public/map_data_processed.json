@@ -1370,9 +1370,9 @@
       "posX": 224.9,
       "posY": -32.7,
       "posZ": 365.67,
-      "globalX": 12576.18,
-      "globalY": 1185.36,
-      "globalZ": 13883.76,
+      "globalX": 15753.8,
+      "globalY": 1185.7,
+      "globalZ": 12042.0,
       "mapId": "m60",
       "texts": [
         {
@@ -1393,9 +1393,9 @@
       "posX": 14.94,
       "posY": 1009.61,
       "posZ": 330.49,
-      "globalX": 12366.22,
-      "globalY": 2227.67,
-      "globalZ": 13848.58,
+      "globalX": 15543.84,
+      "globalY": 2228.01,
+      "globalZ": 12006.82,
       "mapId": "m60",
       "texts": [
         {
@@ -1416,9 +1416,9 @@
       "posX": 13.73,
       "posY": -39.29,
       "posZ": 411.53,
-      "globalX": 12365.01,
-      "globalY": 1178.77,
-      "globalZ": 13929.62,
+      "globalX": 15542.63,
+      "globalY": 1179.1101,
+      "globalZ": 12087.86,
       "mapId": "m60",
       "texts": [
         {
@@ -1439,9 +1439,9 @@
       "posX": 116.66,
       "posY": 53.95,
       "posZ": 161.07,
-      "globalX": 12467.94,
-      "globalY": 1272.01,
-      "globalZ": 13679.16,
+      "globalX": 15645.561,
+      "globalY": 1272.3501,
+      "globalZ": 11837.4,
       "mapId": "m60",
       "texts": [
         {
@@ -1462,9 +1462,9 @@
       "posX": -92.94,
       "posY": 47.42,
       "posZ": 210.9,
-      "globalX": 12258.34,
-      "globalY": 1265.48,
-      "globalZ": 13728.99,
+      "globalX": 15435.96,
+      "globalY": 1265.8201,
+      "globalZ": 11887.23,
       "mapId": "m60",
       "texts": [
         {
@@ -1485,9 +1485,9 @@
       "posX": -88.16,
       "posY": 36.37,
       "posZ": 282.61,
-      "globalX": 12263.12,
-      "globalY": 1254.4299,
-      "globalZ": 13800.7,
+      "globalX": 15440.74,
+      "globalY": 1254.77,
+      "globalZ": 11958.94,
       "mapId": "m60",
       "texts": [
         {
@@ -1508,9 +1508,9 @@
       "posX": -75.41,
       "posY": -19.96,
       "posZ": 404.67,
-      "globalX": 12275.87,
-      "globalY": 1198.1,
-      "globalZ": 13922.76,
+      "globalX": 15453.49,
+      "globalY": 1198.44,
+      "globalZ": 12081.0,
       "mapId": "m60",
       "texts": [
         {
@@ -1531,9 +1531,9 @@
       "posX": 30.4,
       "posY": -45.99,
       "posZ": 361.79,
-      "globalX": 12381.68,
-      "globalY": 1172.0701,
-      "globalZ": 13879.88,
+      "globalX": 15559.3,
+      "globalY": 1172.41,
+      "globalZ": 12038.12,
       "mapId": "m60",
       "texts": [
         {
@@ -1554,9 +1554,9 @@
       "posX": -73.6,
       "posY": -0.97,
       "posZ": 498.83,
-      "globalX": 12277.68,
-      "globalY": 1217.0901,
-      "globalZ": 14016.92,
+      "globalX": 15455.3,
+      "globalY": 1217.43,
+      "globalZ": 12175.16,
       "mapId": "m60",
       "texts": [
         {
@@ -1577,9 +1577,9 @@
       "posX": 83.98,
       "posY": -86.05,
       "posZ": 608.5,
-      "globalX": 12435.26,
-      "globalY": 1132.01,
-      "globalZ": 14126.59,
+      "globalX": 15612.88,
+      "globalY": 1132.3501,
+      "globalZ": 12284.83,
       "mapId": "m60",
       "texts": [
         {
@@ -1600,9 +1600,9 @@
       "posX": 64.07,
       "posY": -73.77,
       "posZ": 497.52,
-      "globalX": 12415.35,
-      "globalY": 1144.29,
-      "globalZ": 14015.61,
+      "globalX": 15592.971,
+      "globalY": 1144.63,
+      "globalZ": 12173.85,
       "mapId": "m60",
       "texts": [
         {
@@ -10740,9 +10740,9 @@
       "posX": 76.42,
       "posY": -1.71,
       "posZ": 276.07,
-      "globalX": 12427.7,
-      "globalY": 1216.35,
-      "globalZ": 13794.16,
+      "globalX": 15605.32,
+      "globalY": 1216.69,
+      "globalZ": 11952.4,
       "mapId": "m60",
       "texts": [
         {
@@ -17539,9 +17539,9 @@
       "posX": -131.74,
       "posY": 16.05,
       "posZ": 393.74,
-      "globalX": 12219.54,
-      "globalY": 1234.11,
-      "globalZ": 13911.83,
+      "globalX": 15397.16,
+      "globalY": 1234.45,
+      "globalZ": 12070.07,
       "mapId": "m60",
       "texts": [
         {
@@ -19274,7 +19274,7 @@
   "convertedCount": 813,
   "failedCount": 3,
   "failedMaps": [
-    "m42_01_00_00",
-    "m12_06_00_00"
+    "m12_06_00_00",
+    "m42_01_00_00"
   ]
 }

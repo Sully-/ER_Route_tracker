@@ -1,28 +1,31 @@
 .toolbar {
   position: fixed;
-  top: 0;
+  top: 48px;
   left: 0;
   right: 0;
-  background: rgba(0, 0, 0, 0.9);
+  height: 55px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
   padding: 12px 20px;
   display: flex;
   align-items: center;
   gap: 15px;
   z-index: 1000;
-  border-bottom: 2px solid #c9a227;
+  border-bottom: 2px solid #8b7355;
+  box-sizing: border-box;
 }
 
 .toolbar-title {
   font-size: 1.2em;
-  color: #c9a227;
+  color: #d4c4a8;
   font-weight: normal;
   margin-right: 20px;
 }
 
 .toolbar-btn {
-  background: #2a2a4a;
-  border: 1px solid #c9a227;
-  color: #c9a227;
+  background: rgba(139, 115, 85, 0.15);
+  border: 1px solid #8b7355;
+  color: #d4c4a8;
   padding: 8px 16px;
   cursor: pointer;
   border-radius: 4px;
@@ -31,8 +34,9 @@
 }
 
 .toolbar-btn:hover:not(:disabled) {
-  background: #c9a227;
-  color: #1a1a2e;
+  background: rgba(139, 115, 85, 0.3);
+  color: #e4d4b8;
+  border-color: #9b8365;
 }
 
 .toolbar-btn:disabled {
@@ -51,14 +55,15 @@
 }
 
 .alpha-badge {
-  background: #dc3545;
-  color: #fff;
+  background: #5c2e2e;
+  color: #d4c4a8;
   padding: 4px 10px;
   border-radius: 4px;
   font-size: 0.75em;
   font-weight: bold;
   text-transform: uppercase;
   animation: pulse 2s infinite;
+  border: 1px solid #4a1f1f;
 }
 
 @keyframes pulse {

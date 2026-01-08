@@ -1,0 +1,6 @@
+@RouteTracker_HostAddress = http://localhost:5192
+
+GET {{RouteTracker_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

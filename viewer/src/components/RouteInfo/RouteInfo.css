@@ -2,16 +2,17 @@
   position: fixed;
   bottom: 20px;
   left: 20px;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
   padding: 15px 20px;
   border-radius: 8px;
-  border: 1px solid #c9a227;
+  border: 1px solid #8b7355;
   z-index: 1000;
   min-width: 250px;
 }
 
 .route-info h3 {
-  color: #c9a227;
+  color: #d4c4a8;
   margin: 0 0 10px 0;
   font-size: 1em;
 }

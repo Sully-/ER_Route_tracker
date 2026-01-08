@@ -46,15 +46,33 @@ clear_route = "ctrl+shift+c"
 # Key to save the recorded route to file
 save_route = "ctrl+s"
 
+# Key to start/stop streaming
+toggle_streaming = "ctrl+h"
+
 [recording]
 # Interval between position records in milliseconds
 # Lower values = more precision but larger data
 # 100ms = 10 points per second (default)
 # 50ms = 20 points per second
 # 200ms = 5 points per second
-record_interval_ms = 100
+record_interval_ms = 5000
 
 [output]
 # Directory where route files will be saved (relative to DLL location)
 # Routes are saved as JSON files with timestamp in the filename
 routes_directory = "routes"
+
+[realtime]
+# Enable real-time streaming mode
+# When enabled, route points are sent to a backend server in real-time
+enabled = true
+
+# Backend API URL for real-time streaming
+# Use http://localhost:5000 for local development
+# Use your server URL for production (e.g., https://your-server.com)
+backend_url = " http://localhost:5192"
+
+# Push key for authentication
+# Get one by calling POST /api/keys/generate on your backend
+# Leave empty to disable real-time streaming even if enabled = true
+push_key = "b8964a54-d541-4b33-9d47-8f20c1255e61"

@@ -9,6 +9,7 @@ import {
 } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import './MapContainer.css';
 import { Route } from '../../types/route';
 import { gameToPixelForMap } from '../../utils/coordinateTransform';
 import {
@@ -31,10 +32,31 @@ export interface MapContainerHandle {
 
 interface MapContainerProps {
   route: Route | null;
+  realtimeRoutes?: Record<string, Route>;
+  activeMapId?: string;
+  onMapChange?: (mapId: string) => void;
+  showIcons?: boolean;
+}
+
+// Palette de couleurs FLASHY pour les routes realtime - bien visibles sur la carte
+const ROUTE_COLORS = [
+  '#ff4444', // Rouge vif
+  '#44ff44', // Vert vif
+  '#4488ff', // Bleu vif
+  '#ffaa00', // Orange vif
+  '#ff44ff', // Magenta
+  '#00ffff', // Cyan
+  '#ffff44', // Jaune vif
+  '#ff8844', // Orange foncé
+];
+
+function getColorForViewKey(viewKey: string, viewKeys: string[]): string {
+  const index = viewKeys.indexOf(viewKey);
+  return ROUTE_COLORS[index >= 0 ? index % ROUTE_COLORS.length : 0];
 }
 
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
-  ({ route }, ref) => {
+  ({ route, realtimeRoutes, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
@@ -48,10 +70,24 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     const iconMarkersRef = useRef<L.Marker[]>([]);
     const iconLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
-    const [activeMapId, setActiveMapId] = useState<string>(DEFAULT_MAP_ID);
+    // Use props if provided, otherwise use local state
+    const [internalActiveMapId, setInternalActiveMapId] = useState<string>(DEFAULT_MAP_ID);
+    const [internalShowIcons, _setInternalShowIcons] = useState<boolean>(true);
+    
+    const activeMapId = propActiveMapId !== undefined ? propActiveMapId : internalActiveMapId;
+    const showIcons = propShowIcons !== undefined ? propShowIcons : internalShowIcons;
+    
     const [transitions, setTransitions] = useState<MapTransition[]>([]);
-    const [showIcons, setShowIcons] = useState<boolean>(true);
     const [pendingZoomTarget, setPendingZoomTarget] = useState<{ x: number; z: number } | null>(null);
+
+    // Use prop callbacks if provided, otherwise use local state
+    const handleMapChange = useCallback((mapId: string) => {
+      if (propOnMapChange) {
+        propOnMapChange(mapId);
+      } else {
+        setInternalActiveMapId(mapId);
+      }
+    }, [propOnMapChange]);
 
     // Load map icons
     const { icons, isLoading: iconsLoading } = useMapIcons({ mapId: activeMapId });
@@ -180,6 +216,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         if (!newConfig) return;
 
         console.log(`Switching map from ${activeMapId} to ${targetMapId}`);
+        
+        // Update parent state if callback provided
+        handleMapChange(targetMapId);
 
         // Remove old tile layer
         if (tileLayerRef.current) {
@@ -203,7 +242,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         // Add new tile layer (cache buster only in dev mode)
         const cacheBuster = import.meta.env.DEV ? `?v=${Date.now()}` : '';
         tileLayerRef.current = L.tileLayer(
-          `${newConfig.tilePath}/{z}/{x}/{y}.jpg${cacheBuster}`,
+          `${newConfig.tilePath}/{z}/{x}/{y}.png${cacheBuster}`,
           {
             minZoom: 0,
             maxZoom: newConfig.maxZoom,
@@ -234,11 +273,8 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           console.log(`Setting pending zoom target: (${zoomToGameCoord.x}, ${zoomToGameCoord.z})`);
           setPendingZoomTarget(zoomToGameCoord);
         }
-        
-        // Set activeMapId to trigger route redraw
-        setActiveMapId(targetMapId);
       },
-      [activeMapId]
+      [activeMapId, handleMapChange]
     );
 
     // Initialize map
@@ -270,7 +306,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       // Cache buster for tiles (only in dev mode)
       const cacheBuster = import.meta.env.DEV ? `?v=${Date.now()}` : '';
       tileLayerRef.current = L.tileLayer(
-        `${config.tilePath}/{z}/{x}/{y}.jpg${cacheBuster}`,
+        `${config.tilePath}/{z}/{x}/{y}.png${cacheBuster}`,
         {
           minZoom: 0,
           maxZoom: config.maxZoom,
@@ -314,6 +350,76 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       }
     }, [route]);
 
+    // Helper function to draw a single route with a given color
+    const drawRouteWithColor = useCallback((
+      routeToDraw: Route,
+      color: string,
+      map: L.Map,
+      config: MapConfig
+    ) => {
+      // Filter points for the active map and remove invalid points (0, 0, 0)
+      const filteredPoints = filterPointsByMap(routeToDraw, activeMapId).filter(
+        (p) => !(p.global_x === 0 && p.global_z === 0)
+      );
+
+      if (filteredPoints.length < 2) {
+        return;
+      }
+
+      // Split route into segments at teleport points (large distance jumps)
+      const TELEPORT_THRESHOLD = 500;
+      const segments: L.LatLng[][] = [];
+      let currentSegment: L.LatLng[] = [];
+
+      for (let i = 0; i < filteredPoints.length; i++) {
+        const p = filteredPoints[i];
+        const pixel = gameToPixelForMap(p.global_x, p.global_z, config);
+        const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+
+        if (i > 0) {
+          const prevP = filteredPoints[i - 1];
+          const dx = p.global_x - prevP.global_x;
+          const dz = p.global_z - prevP.global_z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          if (distance > TELEPORT_THRESHOLD) {
+            if (currentSegment.length > 0) {
+              segments.push(currentSegment);
+            }
+            currentSegment = [latLng];
+            continue;
+          }
+        }
+
+        currentSegment.push(latLng);
+      }
+
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+      }
+
+      // Draw each segment
+      segments.forEach((segment) => {
+        if (segment.length >= 2) {
+          // Route principale - opaque
+          const main = L.polyline(segment, {
+            color: color,
+            weight: 5,
+            opacity: 1,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }).addTo(map);
+          segmentPolylinesRef.current.push(main);
+        }
+      });
+
+      // Return the last point for player marker in realtime mode
+      if (filteredPoints.length > 0) {
+        return filteredPoints[filteredPoints.length - 1];
+      }
+      return null;
+    }, [activeMapId, pixelToLatLng]);
+
     // Draw route when route or active map changes
     useEffect(() => {
       const map = mapRef.current;
@@ -321,11 +427,49 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
       clearRouteLayers();
 
-      if (!route || !route.points || route.points.length < 2) {
+      const config = getActiveConfig();
+
+      // Handle realtime routes
+      if (realtimeRoutes && Object.keys(realtimeRoutes).length > 0) {
+        const viewKeys = Object.keys(realtimeRoutes);
+        viewKeys.forEach((viewKey) => {
+          const rt = realtimeRoutes[viewKey];
+          if (rt && rt.points && rt.points.length >= 2) {
+            const color = getColorForViewKey(viewKey, viewKeys);
+            const lastPoint = drawRouteWithColor(rt, color, map, config);
+            
+            // Add a marker at the current position (last point)
+            if (lastPoint) {
+              const pixel = gameToPixelForMap(lastPoint.global_x, lastPoint.global_z, config);
+              const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+              
+              const playerMarker = L.circleMarker(latLng, {
+                radius: 12,
+                fillColor: color,
+                color: '#ffffff',
+                weight: 3,
+                opacity: 1,
+                fillOpacity: 1,
+                pane: 'teleportPane',
+                className: 'realtime-player-marker', // Effet sonar CSS
+              }).addTo(map);
+              playerMarker.bindTooltip(`Player (${viewKey.substring(0, 8)}...)`, {
+                direction: 'top',
+                offset: [0, -10],
+                permanent: true,
+              });
+              teleportMarkersRef.current.push(playerMarker as unknown as L.Marker);
+            }
+          }
+        });
+        console.log(`Drew ${viewKeys.length} realtime routes on ${config.name}`);
         return;
       }
 
-      const config = getActiveConfig();
+      // Handle static route
+      if (!route || !route.points || route.points.length < 2) {
+        return;
+      }
 
       // Filter points for the active map and remove invalid points (0, 0, 0)
       const filteredPoints = filterPointsByMap(route, activeMapId).filter(
@@ -396,21 +540,11 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       const allLatLngs: L.LatLng[] = [];
       segments.forEach((segment) => {
         if (segment.length >= 2) {
-          // Glow effect for this segment
-          const glow = L.polyline(segment, {
-            color: '#00ff00',
-            weight: 12,
-            opacity: 0.3,
-            lineJoin: 'round',
-            lineCap: 'round',
-          }).addTo(map);
-          segmentPolylinesRef.current.push(glow);
-
-          // Main route for this segment
+          // Route principale - opaque
           const main = L.polyline(segment, {
-            color: '#00ff00',
-            weight: 6,
-            opacity: 0.8,
+            color: '#8b7355', // Or/brun Elden Ring
+            weight: 5,
+            opacity: 1,
             lineJoin: 'round',
             lineCap: 'round',
           }).addTo(map);
@@ -429,21 +563,21 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
       // Add teleport markers (departure = orange, arrival = purple)
       teleportPoints.forEach((tp, index) => {
-        // Departure marker (orange - leaving this spot)
+        // Departure marker (brun-rouille - leaving this spot)
         const departureIcon = L.divIcon({
           className: 'teleport-departure',
           html: `<div style="
             width: 36px;
             height: 36px;
-            background: linear-gradient(135deg, #f97316, #ea580c);
-            border: 4px solid #ffffff;
+            background: linear-gradient(135deg, #8b5a3a, #6b4a2a);
+            border: 3px solid #5a4a3a;
             border-radius: 50%;
-            box-shadow: 0 0 12px rgba(249, 115, 22, 1), 0 0 20px rgba(249, 115, 22, 0.6);
+            box-shadow: 0 0 8px rgba(139, 90, 58, 0.4), 0 0 15px rgba(139, 90, 58, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 18px;
-            color: white;
+            color: #d4c4a8;
             cursor: pointer;
             z-index: 10000;
             position: relative;
@@ -471,21 +605,21 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           offset: [0, -10],
         });
 
-        // Arrival marker (purple - arriving at this spot)
+        // Arrival marker (gris sombre - arriving at this spot)
         const arrivalIcon = L.divIcon({
           className: 'teleport-arrival',
           html: `<div style="
             width: 36px;
             height: 36px;
-            background: linear-gradient(135deg, #9333ea, #7c3aed);
-            border: 4px solid #ffffff;
+            background: linear-gradient(135deg, #4a4a5a, #3a3a4a);
+            border: 3px solid #5a5a6a;
             border-radius: 50%;
-            box-shadow: 0 0 12px rgba(147, 51, 234, 1), 0 0 20px rgba(147, 51, 234, 0.6);
+            box-shadow: 0 0 8px rgba(74, 74, 90, 0.4), 0 0 15px rgba(74, 74, 90, 0.2);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 18px;
-            color: white;
+            color: #b4a4a8;
             cursor: pointer;
             z-index: 10000;
             position: relative;
@@ -545,11 +679,11 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           pixelToLatLng(startPixel.x, startPixel.y, config),
           {
             radius: 12,
-            fillColor: isGlobalStart ? '#00ff00' : '#ffaa00',
-            color: '#ffffff',
-            weight: 3,
+            fillColor: isGlobalStart ? '#8b7355' : '#6b5b4a', // Or désaturé Elden Ring
+            color: '#5a4a3a',
+            weight: 2,
             opacity: 1,
-            fillOpacity: 1,
+            fillOpacity: 0.9,
             pane: 'teleportPane', // Above map icons
           }
         ).addTo(map);
@@ -569,11 +703,11 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           pixelToLatLng(endPixel.x, endPixel.y, config),
           {
             radius: 12,
-            fillColor: isGlobalEnd ? '#ff0000' : '#ffaa00',
-            color: '#ffffff',
-            weight: 3,
+            fillColor: isGlobalEnd ? '#5c2e2e' : '#6b5b4a', // Rouge sombre Elden Ring
+            color: '#4a1f1f',
+            weight: 2,
             opacity: 1,
-            fillOpacity: 1,
+            fillOpacity: 0.9,
             pane: 'teleportPane', // Above map icons
           }
         ).addTo(map);
@@ -601,27 +735,27 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         // Clear the pending target
         setPendingZoomTarget(null);
       }
-    }, [route, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget]);
+    }, [route, realtimeRoutes, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget, drawRouteWithColor]);
 
     // Add transition markers for other maps (using same style as teleport markers)
     const addTransitionMarkers = (map: L.Map, config: MapConfig) => {
       if (transitions.length === 0) return;
 
-      // Departure icon (orange - leaving this map)
+      // Departure icon (brun-rouille - leaving this map)
       const departureIcon = L.divIcon({
         className: 'map-transition-departure',
         html: `<div style="
           width: 36px;
           height: 36px;
-          background: linear-gradient(135deg, #f97316, #ea580c);
-          border: 4px solid #ffffff;
+          background: linear-gradient(135deg, #8b5a3a, #6b4a2a);
+          border: 3px solid #5a4a3a;
           border-radius: 50%;
-          box-shadow: 0 0 12px rgba(249, 115, 22, 1), 0 0 20px rgba(249, 115, 22, 0.6);
+          box-shadow: 0 0 8px rgba(139, 90, 58, 0.4), 0 0 15px rgba(139, 90, 58, 0.2);
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 18px;
-          color: white;
+          color: #d4c4a8;
           cursor: pointer;
           z-index: 10000;
           position: relative;
@@ -630,21 +764,21 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         iconAnchor: [18, 18],
       });
 
-      // Arrival icon (purple - arriving on this map)
+      // Arrival icon (gris sombre - arriving on this map)
       const arrivalIcon = L.divIcon({
         className: 'map-transition-arrival',
         html: `<div style="
           width: 36px;
           height: 36px;
-          background: linear-gradient(135deg, #9333ea, #7c3aed);
-          border: 4px solid #ffffff;
+          background: linear-gradient(135deg, #4a4a5a, #3a3a4a);
+          border: 3px solid #5a5a6a;
           border-radius: 50%;
-          box-shadow: 0 0 12px rgba(147, 51, 234, 1), 0 0 20px rgba(147, 51, 234, 0.6);
+          box-shadow: 0 0 8px rgba(74, 74, 90, 0.4), 0 0 15px rgba(74, 74, 90, 0.2);
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 18px;
-          color: white;
+          color: #b4a4a8;
           cursor: pointer;
           z-index: 10000;
           position: relative;
@@ -847,111 +981,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       },
     }));
 
-    // Get all available maps
-    const availableMaps = Object.values(MAP_CONFIGS);
-
     return (
-      <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div className="map-wrapper">
         <div ref={containerRef} className="map-container" />
-        {/* Map selector */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            zIndex: 1000,
-            background: 'rgba(26, 26, 46, 0.95)',
-            padding: '12px 16px',
-            borderRadius: '10px',
-            border: '1px solid rgba(147, 51, 234, 0.4)',
-            color: 'white',
-            fontSize: '14px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
-          }}
-        >
-          {/* Map buttons */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {availableMaps.map((mapConfig) => (
-              <button
-                key={mapConfig.id}
-                onClick={() => switchMap(mapConfig.id)}
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: '6px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  fontSize: '13px',
-                  transition: 'all 0.2s ease',
-                  background:
-                    activeMapId === mapConfig.id
-                      ? 'linear-gradient(135deg, #9333ea, #3b82f6)'
-                      : 'rgba(255, 255, 255, 0.1)',
-                  color: 'white',
-                  boxShadow:
-                    activeMapId === mapConfig.id
-                      ? '0 2px 10px rgba(147, 51, 234, 0.4)'
-                      : 'none',
-                }}
-              >
-                {mapConfig.name}
-              </button>
-            ))}
-          </div>
-          {/* Icon toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              onClick={() => setShowIcons(!showIcons)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '6px',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                fontSize: '12px',
-                transition: 'all 0.2s ease',
-                background: showIcons
-                  ? 'linear-gradient(135deg, #f59e0b, #ef4444)'
-                  : 'rgba(255, 255, 255, 0.1)',
-                color: 'white',
-                boxShadow: showIcons
-                  ? '0 2px 10px rgba(245, 158, 11, 0.4)'
-                  : 'none',
-              }}
-            >
-              {showIcons ? '🗺️ Icônes ON' : '🗺️ Icônes OFF'}
-            </button>
-            {showIcons && !iconsLoading && (
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
-                {icons.length} icônes
-              </span>
-            )}
-            {iconsLoading && (
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
-                Chargement...
-              </span>
-            )}
-          </div>
-          {/* Transitions info */}
-          {transitions.length > 0 && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                color: 'rgba(255, 255, 255, 0.7)',
-              }}
-            >
-              <span style={{ color: '#9333ea' }}>⟳</span>
-              {transitions.length} transition
-              {transitions.length > 1 ? 's' : ''} dans la route
-            </div>
-          )}
-        </div>
       </div>
     );
   }

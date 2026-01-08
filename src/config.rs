@@ -280,6 +280,8 @@ pub struct KeyBindings {
     pub toggle_ui: Hotkey,
     /// Key to start/stop recording
     pub toggle_recording: Hotkey,
+    /// Key to start/stop streaming to backend
+    pub toggle_streaming: Hotkey,
     /// Key to clear recorded route
     pub clear_route: Hotkey,
     /// Key to save recorded route to file
@@ -295,6 +297,10 @@ impl Default for KeyBindings {
             },
             toggle_recording: Hotkey {
                 key: 0x77, // F8
+                modifiers: Modifiers::default(),
+            },
+            toggle_streaming: Hotkey {
+                key: 0x75, // F6
                 modifiers: Modifiers::default(),
             },
             clear_route: Hotkey {
@@ -339,6 +345,27 @@ impl Default for OutputSettings {
     }
 }
 
+/// Real-time streaming settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RealtimeSettings {
+    /// Enable real-time mode
+    pub enabled: bool,
+    /// Backend API URL (e.g., "http://localhost:5000")
+    pub backend_url: String,
+    /// Push key for sending route points (get one from the backend)
+    pub push_key: Option<String>,
+}
+
+impl Default for RealtimeSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            backend_url: "http://localhost:5000".to_string(),
+            push_key: None,
+        }
+    }
+}
+
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -348,6 +375,9 @@ pub struct Config {
     pub recording: RecordingSettings,
     /// Output settings
     pub output: OutputSettings,
+    /// Real-time streaming settings
+    #[serde(default)]
+    pub realtime: RealtimeSettings,
 }
 
 impl Default for Config {
@@ -356,6 +386,7 @@ impl Default for Config {
             keybindings: KeyBindings::default(),
             recording: RecordingSettings::default(),
             output: OutputSettings::default(),
+            realtime: RealtimeSettings::default(),
         }
     }
 }

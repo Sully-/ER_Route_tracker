@@ -21,25 +21,30 @@ by johndisandonato, also licensed under AGPL-3.0.
 - [x] Configurable hotkeys with modifier support
 - [x] Built-in DLL injector
 - [x] Export route to JSON file
+- [x] Real-time position streaming to backend endpoint for live tracking
 
 ### Viewer (React + Leaflet.js) https://sulli.tech/ER_Route_tracker/
 - [x] Interactive world map with tile-based rendering
 - [x] Load and display recorded routes
 - [x] Start/End markers
 - [x] Auto-focus on routes
+- [x] DLC maps (Shadow Realm) support
+- [x] Location icons (graces, bosses, merchants, etc.) with popups
+- [x] Map transitions (Lands Between ↔ Shadow Realm)
+- [x] Teleportation markers (departure/arrival) for intra-map and inter-map teleports
+- [x] Automatic zoom on map transitions
+- [x] Icon visibility toggle
+- [x] Real-time live tracking of player position via SignalR
 
 ## Roadmap
 
 ### Tracker
 - [ ] Event tracking (item pickup, death, grace activation...)
-- [ ] Real-time position streaming to endpoint for live tracking
 
 ### Viewer
+- [ ] Underground map
 - [ ] Event icons on map (item pickup, death, grace activation...)
-- [ ] Location icons (graces, bosses, merchants...)
-- [ ] Underground maps & DLC maps
 - [ ] Timelapse playback mode
-- [ ] Real-time live tracking of player position
 
 ## Project Structure
 
@@ -55,6 +60,7 @@ Route_tracking/
 │   ├── route.rs                      # Route data structures
 │   ├── tracker.rs                    # Position tracking logic
 │   ├── coordinate_transformer.rs     # Local → Global coordinate conversion
+│   ├── realtime_client.rs            # Real-time streaming client
 │   ├── ui.rs                         # ImGui overlay
 │   ├── injector.rs                   # Standalone injector (EXE)
 │   └── WorldMapLegacyConvParam.csv   # Coordinate mapping data
@@ -97,6 +103,7 @@ Edit `route_tracker_config.toml` to customize hotkeys:
 [keybindings]
 toggle_ui = "f9"              # Show/hide overlay
 toggle_recording = "ctrl+r"   # Start/stop recording
+toggle_streaming = "f6"       # Start/stop real-time streaming
 save_route = "ctrl+s"         # Save route to file
 clear_route = "ctrl+shift+c"  # Clear recorded route
 
@@ -105,6 +112,11 @@ record_interval_ms = 100      # Record position every 100ms
 
 [output]
 routes_directory = "routes"   # Where to save route files
+
+[realtime]
+enabled = false               # Enable real-time streaming
+backend_url = "http://localhost:5192"  # Backend API URL
+push_key = ""                 # Push key for authentication (get from backend)
 ```
 
 **Hotkey format:**
@@ -123,12 +135,55 @@ routes_directory = "routes"   # Where to save route files
 Default hotkeys (configurable):
 - **F9** - Toggle overlay visibility
 - **Ctrl+R** - Start/Stop recording
+- **F6** - Start/Stop real-time streaming to backend
 - **Ctrl+S** - Save current route to JSON
 - **Ctrl+Shift+C** - Clear recorded route
 
-### 5. View your routes
+### 5. Real-time streaming (optional)
+
+To enable real-time streaming to the backend:
+
+1. Set up the backend server (see [Backend & Database Setup](#backend--database-setup))
+2. Generate a push key from the backend API
+3. Edit `route_tracker_config.toml`:
+   ```toml
+   [realtime]
+   enabled = true
+   backend_url = "http://localhost:5192"  # Your backend URL
+   push_key = "your-push-key-here"         # Get from backend
+   ```
+4. Use **F6** (default) to start/stop streaming
+
+The viewer can then track routes in real-time using the corresponding view key.
+
+### 6. View your routes
 
 See [viewer/README.md](viewer/README.md) for the interactive map viewer.
+
+## Backend & Database Setup
+
+The project includes an ASP.NET Core backend with PostgreSQL for real-time tracking features.
+
+### Quick Start
+
+**Windows:**
+```powershell
+.\setup-dev-windows.ps1
+```
+
+**Linux:**
+```bash
+chmod +x setup-dev-linux.sh
+./setup-dev-linux.sh
+```
+
+**Production (Linux):**
+```bash
+cd backend/scripts
+sudo ./setup-prod-linux.sh --create-service
+```
+
+For detailed instructions, see [DATABASE_SETUP.md](DATABASE_SETUP.md).
 
 ## Configuration file
 

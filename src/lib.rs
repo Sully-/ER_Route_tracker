@@ -24,6 +24,7 @@
 
 mod config;
 pub mod coordinate_transformer;
+mod realtime_client;
 mod route;
 mod tracker;
 mod ui;

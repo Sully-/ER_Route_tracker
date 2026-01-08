@@ -16,6 +16,7 @@ export interface Route {
   recorded_at: string;
   point_count: number;
   duration_secs: number;
+  interval_ms?: number;
   points: RoutePoint[];
 }
 

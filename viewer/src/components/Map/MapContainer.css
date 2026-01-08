@@ -1,0 +1,144 @@
+/* MapContainer.css - Styles for realtime player markers */
+
+/* Sonar pulse animation for realtime player markers */
+@keyframes sonarPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0.7;
+  }
+}
+
+/* Apply to Leaflet CircleMarker path elements */
+.realtime-player-marker {
+  animation: sonarPulse 1.5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* Ensure the marker stays visible and above other elements */
+.realtime-player-marker path {
+  animation: sonarPulse 1.5s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+
+/* ============================================ */
+/* Map Container Layout                         */
+/* ============================================ */
+
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================ */
+/* Map Selector Panel                           */
+/* ============================================ */
+
+.map-selector-panel {
+  position: fixed;
+  top: 103px;
+  right: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
+  padding: 12px 16px;
+  border-radius: 0 0 0 10px;
+  border: 1px solid rgba(139, 115, 85, 0.4);
+  border-top: none;
+  border-right: none;
+  color: white;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Map buttons container */
+.map-selector-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* Map selector button base */
+.map-selector-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  background: rgba(139, 115, 85, 0.15);
+  color: #d4c4a8;
+  box-shadow: none;
+}
+
+.map-selector-btn:hover {
+  background: rgba(139, 115, 85, 0.3);
+}
+
+.map-selector-btn.active {
+  background: linear-gradient(135deg, #8b7355, #6b5b4a);
+  box-shadow: 0 2px 10px rgba(139, 115, 85, 0.3);
+}
+
+/* ============================================ */
+/* Icon Toggle Section                          */
+/* ============================================ */
+
+.icon-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-toggle-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  background: rgba(139, 115, 85, 0.15);
+  color: #d4c4a8;
+  box-shadow: none;
+}
+
+.icon-toggle-btn:hover {
+  background: rgba(139, 115, 85, 0.3);
+}
+
+.icon-toggle-btn.active {
+  background: linear-gradient(135deg, #8b7355, #6b5b4a);
+  box-shadow: 0 2px 10px rgba(139, 115, 85, 0.3);
+}
+
+.icon-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================ */
+/* Transitions Info                             */
+/* ============================================ */
+
+.transitions-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.transitions-icon {
+  color: #8b7355;
+}
+
