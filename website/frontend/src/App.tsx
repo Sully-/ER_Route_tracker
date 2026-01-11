@@ -257,7 +257,6 @@ function App() {
         onUpdateViewKeyName={handleUpdateViewKeyName}
         onFocusRoute={handleFocusRoute}
         onFocusPlayer={handleFocusPlayer}
-        hasRoutes={Object.keys(realtimeRoutes).length > 0}
         isRealtimeMode={activeTab === 'realtime'}
         route={activeTab === 'static' ? route : null}
         onLoadRoute={activeTab === 'static' ? loadRoute : undefined}

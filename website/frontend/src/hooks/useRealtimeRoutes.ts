@@ -96,6 +96,8 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
   const [routes, setRoutes] = useState<Record<string, Route>>({});
   const [connectionStatus, setConnectionStatus] = useState<Record<string, ConnectionStatus>>({});
   const [error, setError] = useState<string | null>(null);
+  // Track last received timestamp for each viewKey to detect inactivity
+  const [lastReceivedTimestamps, setLastReceivedTimestamps] = useState<Record<string, number>>({});
   
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -133,6 +135,27 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
         }
         
         console.log(`Updating route for viewKey: ${viewKey} with ${points.length} new points`);
+        
+        // Update last received timestamp (use the most recent point's receivedAt)
+        const lastPoint = points[points.length - 1];
+        if (lastPoint && lastPoint.receivedAt) {
+          const receivedTimestamp = new Date(lastPoint.receivedAt).getTime();
+          setLastReceivedTimestamps(prev => ({
+            ...prev,
+            [viewKey]: receivedTimestamp,
+          }));
+          
+          // If status was 'disconnected' due to inactivity, set it back to 'connected'
+          setConnectionStatus(prev => {
+            if (prev[viewKey] === 'disconnected') {
+              return {
+                ...prev,
+                [viewKey]: 'connected',
+              };
+            }
+            return prev;
+          });
+        }
         
         setRoutes(prev => {
           const existingRoute = prev[viewKey];
@@ -178,6 +201,27 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
       if (!viewKey || !points || points.length === 0) {
         console.warn('ReceiveRouteHistory called with invalid data');
         return;
+      }
+      
+      // Update last received timestamp (use the most recent point's receivedAt)
+      const lastPoint = points[points.length - 1];
+      if (lastPoint && lastPoint.receivedAt) {
+        const receivedTimestamp = new Date(lastPoint.receivedAt).getTime();
+        setLastReceivedTimestamps(prev => ({
+          ...prev,
+          [viewKey]: receivedTimestamp,
+        }));
+        
+        // If status was 'disconnected' due to inactivity, set it back to 'connected'
+        setConnectionStatus(prev => {
+          if (prev[viewKey] === 'disconnected') {
+            return {
+              ...prev,
+              [viewKey]: 'connected',
+            };
+          }
+          return prev;
+        });
       }
       
       const newPoints = points.map(broadcastToRoutePoint);
@@ -284,6 +328,42 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
     };
   }, []);
 
+  // Check for inactive routes (no points received for 1 minute)
+  useEffect(() => {
+    const INACTIVITY_TIMEOUT_MS = 60 * 1000; // 1 minute
+    
+    const checkInactivity = () => {
+      const now = Date.now();
+      
+      setConnectionStatus(prevStatus => {
+        const newStatus = { ...prevStatus };
+        let changed = false;
+        
+        viewKeys.forEach(viewKey => {
+          const lastTimestamp = lastReceivedTimestamps[viewKey];
+          
+          // Only check if we have a timestamp and the status is 'connected'
+          if (lastTimestamp && prevStatus[viewKey] === 'connected') {
+            const timeSinceLastPoint = now - lastTimestamp;
+            
+            if (timeSinceLastPoint > INACTIVITY_TIMEOUT_MS) {
+              newStatus[viewKey] = 'disconnected';
+              changed = true;
+              console.log(`ViewKey ${viewKey} marked as disconnected due to inactivity (${Math.round(timeSinceLastPoint / 1000)}s since last point)`);
+            }
+          }
+        });
+        
+        return changed ? newStatus : prevStatus;
+      });
+    };
+    
+    // Check every 10 seconds
+    const intervalId = setInterval(checkInactivity, 10000);
+    
+    return () => clearInterval(intervalId);
+  }, [viewKeys, lastReceivedTimestamps]);
+
   // Note: Route point updates are handled per-viewKey via handlers registered in addViewKey
 
   const addViewKey = useCallback((viewKey: string) => {
@@ -351,6 +431,11 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
       const newStatus = { ...prev };
       delete newStatus[viewKey];
       return newStatus;
+    });
+    setLastReceivedTimestamps(prev => {
+      const newTimestamps = { ...prev };
+      delete newTimestamps[viewKey];
+      return newTimestamps;
     });
   }, []);
 

@@ -31,7 +31,6 @@ interface SidePanelProps {
   onUpdateViewKeyName: (viewKey: string, name: string) => void;
   onFocusRoute: () => void;
   onFocusPlayer: (viewKey: string) => void;
-  hasRoutes: boolean;
   isRealtimeMode: boolean;
   route?: any; // Route data for transitions detection
   // Static mode toolbar props
@@ -69,7 +68,6 @@ function SidePanel({
   onUpdateViewKeyName,
   onFocusRoute,
   onFocusPlayer,
-  hasRoutes,
   isRealtimeMode,
   route,
   onLoadRoute,
