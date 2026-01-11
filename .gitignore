@@ -1,12 +1,32 @@
+# IDE
 /.idea/*
-/target/*
-/.vscode/*
-/dist/*
-/viewer/dist/*
-/viewer/node_modules/*
-/release/*
-/original_maps/*
-/backend/RouteTracker/bin/Debug/
 */.idea/
-**/obj/**
+/.vscode/*
 *.DotSettings.user
+
+# Rust mod
+/mod/target/*
+
+# Website - Backend
+/website/backend/bin/
+/website/backend/obj/
+**/obj/**
+
+# Website - Frontend
+/website/frontend/dist/*
+/website/frontend/node_modules/*
+
+# Build outputs
+/dist/*
+/release/*
+/deploy/*
+
+# Maps data (large files)
+/original_maps/*
+
+# Environment files with secrets
+.env.production
+.env.local
+/packages/*
+/docs/DEPLOYMENT_SULLI_TECH.md
+/docs/SECURITY_DDOS.md

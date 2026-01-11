@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using RouteTracker.Hubs;
 using RouteTracker.Models;
@@ -28,9 +29,16 @@ public class RoutePointsController : ControllerBase
     }
 
     /// <summary>
+    /// Maximum number of route points allowed per request (DDoS protection)
+    /// </summary>
+    private const int MaxPointsPerRequest = 100;
+    
+    /// <summary>
     /// Submit one or more route points
     /// </summary>
     [HttpPost]
+    [EnableRateLimiting("WriteEndpoint")]
+    [RequestSizeLimit(1_048_576)] // 1MB max payload size
     public async Task<IActionResult> SubmitPoints([FromBody] List<RoutePointRequest> points)
     {
         _logger.LogInformation("SubmitPoints called with {Count} points", points?.Count ?? 0);
@@ -59,6 +67,16 @@ public class RoutePointsController : ControllerBase
         {
             _logger.LogWarning("No points provided in request");
             return BadRequest(new { message = "At least one route point is required" });
+        }
+        
+        // DDoS protection: limit number of points per request
+        if (points.Count > MaxPointsPerRequest)
+        {
+            _logger.LogWarning("Request rejected: too many points ({Count} > {Max}) from push key {PushKey}", 
+                points.Count, MaxPointsPerRequest, pushKey);
+            return BadRequest(new { 
+                message = $"Maximum {MaxPointsPerRequest} points per request. Received: {points.Count}" 
+            });
         }
 
         _logger.LogInformation("Saving {Count} points to database for push key {PushKey}", points.Count, pushKey);

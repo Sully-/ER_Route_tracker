@@ -6,6 +6,11 @@ namespace RouteTracker.Services;
 
 public class RouteService : IRouteService
 {
+    /// <summary>
+    /// Maximum number of route points allowed per batch (DDoS protection - defense in depth)
+    /// </summary>
+    private const int MaxPointsPerBatch = 100;
+    
     private readonly ApplicationDbContext _context;
     private readonly IKeyService _keyService;
     private readonly ILogger<RouteService> _logger;
@@ -49,7 +54,18 @@ public class RouteService : IRouteService
 
     public async Task<IEnumerable<RoutePoint>> AddRoutePointsAsync(string pushKey, IEnumerable<RoutePointRequest> requests)
     {
-        var routePoints = requests.Select(request => new RoutePoint
+        // Convert to list first to get count (defense in depth - controller should also validate)
+        var requestsList = requests.ToList();
+        
+        // DDoS protection: limit number of points per batch
+        if (requestsList.Count > MaxPointsPerBatch)
+        {
+            _logger.LogWarning("Batch rejected at service level: too many points ({Count} > {Max}) for push key {PushKey}", 
+                requestsList.Count, MaxPointsPerBatch, pushKey);
+            throw new ArgumentException($"Maximum {MaxPointsPerBatch} points per batch. Received: {requestsList.Count}");
+        }
+        
+        var routePoints = requestsList.Select(request => new RoutePoint
         {
             PushKey = pushKey,
             X = request.X,

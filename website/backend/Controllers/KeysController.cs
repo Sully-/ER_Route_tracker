@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using RouteTracker.Models;
 using RouteTracker.Services;
 
@@ -21,6 +22,7 @@ public class KeysController : ControllerBase
     /// Generate a new push/view key pair
     /// </summary>
     [HttpPost("generate")]
+    [EnableRateLimiting("KeyGenEndpoint")]
     public async Task<ActionResult<KeyPairResponse>> Generate()
     {
         var keyPair = await _keyService.GenerateKeyPairAsync();

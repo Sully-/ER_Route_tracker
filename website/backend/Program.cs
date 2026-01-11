@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using RouteTracker.Data;
@@ -61,6 +63,60 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Configure Rate Limiting for DDoS protection
+builder.Services.AddRateLimiter(options =>
+{
+    // Strict limit for POST /api/RoutePoints (DB write)
+    // Max 60 requests/minute per IP (1 point per second)
+    options.AddFixedWindowLimiter("WriteEndpoint", limiterOptions =>
+    {
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.PermitLimit = 60;
+        limiterOptions.QueueLimit = 5;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+    
+    // Very strict limit for POST /api/Keys/generate
+    // Max 5 key generations/minute per IP
+    options.AddFixedWindowLimiter("KeyGenEndpoint", limiterOptions =>
+    {
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.PermitLimit = 5;
+        limiterOptions.QueueLimit = 1;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+    
+    // General limit for all other endpoints
+    // 60 requests/minute per IP
+    options.AddSlidingWindowLimiter("GeneralEndpoint", limiterOptions =>
+    {
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.SegmentsPerWindow = 6;
+        limiterOptions.PermitLimit = 60;
+        limiterOptions.QueueLimit = 5;
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    });
+    
+    // Custom rejection response
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        context.HttpContext.Response.ContentType = "application/json";
+        
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("RateLimiting");
+        logger.LogWarning("Rate limit exceeded for {Path} from {IP}", 
+            context.HttpContext.Request.Path,
+            context.HttpContext.Connection.RemoteIpAddress);
+        
+        await context.HttpContext.Response.WriteAsJsonAsync(new 
+        { 
+            message = "Rate limit exceeded. Please try again later.",
+            retryAfter = "60 seconds"
+        }, cancellationToken);
+    };
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -82,6 +138,9 @@ if (!app.Environment.IsDevelopment())
 // Use CORS - SignalR needs credentials
 // CORS must be before UseAuthorization and MapHub
 app.UseCors("AllowSignalR");
+
+// Rate limiting middleware - DDoS protection
+app.UseRateLimiter();
 
 app.UseAuthorization();
 

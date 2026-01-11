@@ -23,7 +23,7 @@ by johndisandonato, also licensed under AGPL-3.0.
 - [x] Export route to JSON file
 - [x] Real-time position streaming to backend endpoint for live tracking
 
-### Viewer (React + Leaflet.js) https://sulli.tech/ER_Route_tracker/
+### Web Viewer (React + Leaflet.js) https://sulli.tech/ER_Route_tracker/
 - [x] Interactive world map with tile-based rendering
 - [x] Load and display recorded routes
 - [x] Start/End markers
@@ -41,7 +41,7 @@ by johndisandonato, also licensed under AGPL-3.0.
 ### Tracker
 - [ ] Event tracking (item pickup, death, grace activation...)
 
-### Viewer
+### website
 - [ ] Underground map
 - [ ] Event icons on map (item pickup, death, grace activation...)
 - [ ] Timelapse playback mode
@@ -50,22 +50,56 @@ by johndisandonato, also licensed under AGPL-3.0.
 
 ```
 Route_tracking/
-├── Cargo.toml                        # Rust project configuration
-├── LICENSE                           # AGPL-3.0 license
-├── README.md                         # This file
-├── route_tracker_config.toml         # Configuration template
-├── src/
-│   ├── lib.rs                        # Main mod code (DLL)
-│   ├── config.rs                     # Configuration & hotkey parsing
-│   ├── route.rs                      # Route data structures
-│   ├── tracker.rs                    # Position tracking logic
-│   ├── coordinate_transformer.rs     # Local → Global coordinate conversion
-│   ├── realtime_client.rs            # Real-time streaming client
-│   ├── ui.rs                         # ImGui overlay
-│   ├── injector.rs                   # Standalone injector (EXE)
-│   └── WorldMapLegacyConvParam.csv   # Coordinate mapping data
-└── viewer/                           # Interactive map viewer
-    └── (see viewer/README.md)
+├── mod/                              # Rust mod (DLL + Injector)
+│   ├── src/
+│   │   ├── lib.rs                    # Main mod code (DLL)
+│   │   ├── config.rs                 # Configuration & hotkey parsing
+│   │   ├── route.rs                  # Route data structures
+│   │   ├── tracker.rs                # Position tracking logic
+│   │   ├── coordinate_transformer.rs # Local → Global coordinate conversion
+│   │   ├── realtime_client.rs        # Real-time streaming client
+│   │   ├── ui.rs                     # ImGui overlay
+│   │   ├── injector.rs               # Standalone injector (EXE)
+│   │   └── WorldMapLegacyConvParam.csv
+│   ├── Cargo.toml
+│   ├── Cargo.lock
+│   ├── build.rs
+│   └── route_tracker_config.toml     # Configuration template
+│
+├── website/                          # Web application
+│   ├── backend/                      # ASP.NET Core API
+│   │   ├── Controllers/
+│   │   ├── Hubs/                     # SignalR hub
+│   │   ├── Models/
+│   │   ├── Services/
+│   │   ├── Program.cs
+│   │   └── RouteTracker.csproj
+│   │
+│   └── frontend/                     # React + Vite application
+│       ├── src/
+│       ├── public/
+│       ├── package.json
+│       └── vite.config.ts
+│
+├── docs/                             # Documentation
+│   ├── DATABASE_SETUP.md             # Initial database setup
+│   ├── DAILY_DEPLOYMENT.md           # Daily deployment guide
+│   └── UBUNTU_DEPLOYMENT_GUIDE.md    # Initial Ubuntu setup
+│
+├── scripts/                          # Build & deployment scripts
+│   ├── mod/
+│   │   └── build.ps1                 # Mod build script
+│   └── website/
+│       ├── backend/
+│       │   └── database/             # Standalone DB scripts
+│       │       ├── setup-database.sql
+│       │       └── setup-database.sh
+│       └── deploy/
+│           └── package.ps1           # Daily packaging script
+│
+├── .gitignore
+├── LICENSE
+└── README.md
 ```
 
 ## Prerequisites
@@ -73,17 +107,24 @@ Route_tracking/
 - Rust toolchain (edition 2021)
 - Windows target: `x86_64-pc-windows-msvc`
 - Elden Ring with [EAC bypass](https://soulsspeedruns.com/eldenring/eac-bypass/)
-- Node.js 18+ (for the viewer)
+- Node.js 18+ (for the frontend)
+- .NET 10.0+ (for the backend)
 
 ## Building the Mod
 
 ```powershell
+cd mod
 cargo build --release
 ```
 
+Or use the build script:
+```powershell
+.\scripts\mod\build.ps1 -Release
+```
+
 This generates:
-- `target/release/route_tracking.dll` - The mod DLL
-- `target/release/route-tracker-injector.exe` - The injector
+- `mod/target/release/route_tracking.dll` - The mod DLL
+- `mod/target/release/route-tracker-injector.exe` - The injector
 
 ## Installation & Usage
 
@@ -158,32 +199,37 @@ The viewer can then track routes in real-time using the corresponding view key.
 
 ### 6. View your routes
 
-See [viewer/README.md](viewer/README.md) for the interactive map viewer.
+See [website/frontend/README.md](website/frontend/README.md) for the interactive map viewer.
 
 ## Backend & Database Setup
 
 The project includes an ASP.NET Core backend with PostgreSQL for real-time tracking features.
 
-### Quick Start
+### Database Setup (Production)
 
-**Windows:**
+The SQL scripts are standalone and don't require the source code:
+
+```bash
+# On the server, copy the files:
+# - scripts/website/backend/database/setup-database.sql
+# - scripts/website/backend/database/setup-database.sh
+
+chmod +x setup-database.sh
+sudo -u postgres ./setup-database.sh
+```
+
+### Packaging for Deployment
+
 ```powershell
-.\setup-dev-windows.ps1
+# On Windows, create the packages
+.\scripts\website\deploy\package.ps1 -BackendUrl "http://server:5000"
 ```
 
-**Linux:**
-```bash
-chmod +x setup-dev-linux.sh
-./setup-dev-linux.sh
-```
+### Documentation
 
-**Production (Linux):**
-```bash
-cd backend/scripts
-sudo ./setup-prod-linux.sh --create-service
-```
-
-For detailed instructions, see [DATABASE_SETUP.md](DATABASE_SETUP.md).
+- [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) - Database configuration
+- [docs/DAILY_DEPLOYMENT.md](docs/DAILY_DEPLOYMENT.md) - Daily deployment
+- [docs/UBUNTU_DEPLOYMENT_GUIDE.md](docs/UBUNTU_DEPLOYMENT_GUIDE.md) - Initial Ubuntu setup
 
 ## Configuration file
 
