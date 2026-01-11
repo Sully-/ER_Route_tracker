@@ -24,10 +24,13 @@ interface SidePanelProps {
   showIcons: boolean;
   onToggleIcons: (show: boolean) => void;
   viewKeys: string[];
+  viewKeyNames: Record<string, string>;
   connectionStatus: Record<string, ConnectionStatus>;
   onAddViewKey: (viewKey: string) => void;
   onRemoveViewKey: (viewKey: string) => void;
+  onUpdateViewKeyName: (viewKey: string, name: string) => void;
   onFocusRoute: () => void;
+  onFocusPlayer: (viewKey: string) => void;
   hasRoutes: boolean;
   isRealtimeMode: boolean;
   route?: any; // Route data for transitions detection
@@ -59,10 +62,13 @@ function SidePanel({
   showIcons,
   onToggleIcons,
   viewKeys,
+  viewKeyNames,
   connectionStatus,
   onAddViewKey,
   onRemoveViewKey,
+  onUpdateViewKeyName,
   onFocusRoute,
+  onFocusPlayer,
   hasRoutes,
   isRealtimeMode,
   route,
@@ -74,7 +80,10 @@ function SidePanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedKeys, setGeneratedKeys] = useState<GeneratedKeys | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [editingViewKey, setEditingViewKey] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Load map icons
   const { icons, isLoading: iconsLoading } = useMapIcons({ mapId: activeMapId });
@@ -181,6 +190,43 @@ function SidePanel({
         return 'Disconnected';
     }
   };
+  
+  const handleStartEditingName = (viewKey: string) => {
+    setEditingViewKey(viewKey);
+    setEditingName(viewKeyNames[viewKey] || '');
+    // Focus input after a small delay to ensure it's rendered
+    setTimeout(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }, 0);
+  };
+  
+  const handleSaveName = (viewKey: string) => {
+    onUpdateViewKeyName(viewKey, editingName);
+    setEditingViewKey(null);
+    setEditingName('');
+  };
+  
+  const handleCancelEdit = () => {
+    setEditingViewKey(null);
+    setEditingName('');
+  };
+  
+  const handleNameInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, viewKey: string) => {
+    if (e.key === 'Enter') {
+      handleSaveName(viewKey);
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+  
+  const getDisplayName = (viewKey: string): string => {
+    const name = viewKeyNames[viewKey];
+    if (name && name.trim()) {
+      return name.trim();
+    }
+    return `${viewKey.substring(0, 8)}...${viewKey.substring(viewKey.length - 4)}`;
+  };
 
   return (
     <div className="side-panel">
@@ -282,15 +328,7 @@ function SidePanel({
               >
                 {isGenerating ? 'Generating...' : 'Generate'}
               </button>
-              {hasRoutes && (
-                <button
-                  type="button"
-                  className="realtime-focus-btn"
-                  onClick={onFocusRoute}
-                >
-                  Focus
-                </button>
-              )}
+
             </div>
           </form>
 
@@ -360,15 +398,41 @@ function SidePanel({
                     className="realtime-key-color"
                     style={{ backgroundColor: getRouteColor(index) }}
                   />
-                  <span className="realtime-key-text">
-                    {key.substring(0, 8)}...{key.substring(key.length - 4)}
-                  </span>
+                  {editingViewKey === key ? (
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      className="realtime-key-name-input"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onBlur={() => handleSaveName(key)}
+                      onKeyDown={(e) => handleNameInputKeyDown(e, key)}
+                      placeholder="Nom du joueur"
+                      maxLength={50}
+                    />
+                  ) : (
+                    <span
+                      className="realtime-key-text"
+                      onClick={() => handleStartEditingName(key)}
+                      title="Cliquez pour éditer le nom"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {getDisplayName(key)}
+                    </span>
+                  )}
                   <span className="realtime-key-status">
                     {getStatusIcon(connectionStatus[key] || 'disconnected')}
                     <span className="realtime-status-text">
                       {getStatusText(connectionStatus[key] || 'disconnected')}
                     </span>
                   </span>
+                  <button
+                    className="realtime-focus-player-btn"
+                    onClick={() => onFocusPlayer(key)}
+                    title="Focus on this player"
+                  >
+                    Focus
+                  </button>
                   <button
                     className="realtime-remove-btn"
                     onClick={() => onRemoveViewKey(key)}

@@ -30,3 +30,8 @@
 /packages/*
 /docs/DEPLOYMENT_SULLI_TECH.md
 /docs/SECURITY_DDOS.md
+**/.idea/**
+/website/backend/.idea/.idea.RouteTracker/.idea/.name
+/website/backend/.idea/.idea.RouteTracker/.idea/encodings.xml
+/website/backend/.idea/.idea.RouteTracker/.idea/indexLayout.xml
+/website/backend/.idea/.idea.RouteTracker/.idea/vcs.xml

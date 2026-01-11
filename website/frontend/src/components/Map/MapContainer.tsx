@@ -21,6 +21,7 @@ import {
   detectMapTransitions,
   filterPointsByMap,
   getInitialMap,
+  getDisplayMapId,
   MapTransition,
 } from '../../utils/routeAnalysis';
 import { useMapIcons } from '../../hooks/useMapIcons';
@@ -28,11 +29,13 @@ import { MapIcon, getIconPrimaryText } from '../../types/mapIcons';
 
 export interface MapContainerHandle {
   focusRoute: () => void;
+  focusPlayer: (viewKey: string) => void;
 }
 
 interface MapContainerProps {
   route: Route | null;
   realtimeRoutes?: Record<string, Route>;
+  viewKeyNames?: Record<string, string>;
   activeMapId?: string;
   onMapChange?: (mapId: string) => void;
   showIcons?: boolean;
@@ -56,7 +59,7 @@ function getColorForViewKey(viewKey: string, viewKeys: string[]): string {
 }
 
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
-  ({ route, realtimeRoutes, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons }, ref) => {
+  ({ route, realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
@@ -453,7 +456,10 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
                 pane: 'teleportPane',
                 className: 'realtime-player-marker', // Effet sonar CSS
               }).addTo(map);
-              playerMarker.bindTooltip(`Player (${viewKey.substring(0, 8)}...)`, {
+              
+              // Use custom name if available, otherwise use truncated viewKey
+              const playerName = viewKeyNames[viewKey]?.trim() || `${viewKey.substring(0, 8)}...${viewKey.substring(viewKey.length - 4)}`;
+              playerMarker.bindTooltip(playerName, {
                 direction: 'top',
                 offset: [0, -10],
                 permanent: true,
@@ -735,7 +741,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         // Clear the pending target
         setPendingZoomTarget(null);
       }
-    }, [route, realtimeRoutes, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget, drawRouteWithColor]);
+    }, [route, realtimeRoutes, viewKeyNames, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget, drawRouteWithColor]);
 
     // Add transition markers for other maps (using same style as teleport markers)
     const addTransitionMarkers = (map: L.Map, config: MapConfig) => {
@@ -973,13 +979,163 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
       focusRoute: () => {
-        if (mapRef.current && routeLayerRef.current) {
-          mapRef.current.fitBounds(routeLayerRef.current.getBounds(), {
+        const map = mapRef.current;
+        if (!map) return;
+
+        const config = getActiveConfig();
+
+        // Priority: realtime routes > static route
+        if (realtimeRoutes && Object.keys(realtimeRoutes).length > 0) {
+          // Collect all last points from all players on the current map
+          const playerPointsOnCurrentMap: L.LatLng[] = [];
+          const playerPointsOnOtherMaps: Map<string, L.LatLng[]> = new Map();
+
+          Object.entries(realtimeRoutes).forEach(([_viewKey, rt]) => {
+            if (rt && rt.points && rt.points.length > 0) {
+              const lastPoint = rt.points[rt.points.length - 1];
+              const pointMapId = getDisplayMapId(lastPoint);
+              
+              const pixel = gameToPixelForMap(lastPoint.global_x, lastPoint.global_z, config);
+              const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+              
+              if (pointMapId === activeMapId) {
+                playerPointsOnCurrentMap.push(latLng);
+              } else {
+                if (!playerPointsOnOtherMaps.has(pointMapId)) {
+                  playerPointsOnOtherMaps.set(pointMapId, []);
+                }
+                playerPointsOnOtherMaps.get(pointMapId)!.push(latLng);
+              }
+            }
+          });
+
+          // If we have players on current map, fit bounds to show all of them
+          if (playerPointsOnCurrentMap.length > 0) {
+            if (playerPointsOnCurrentMap.length === 1) {
+              // Single player: zoom close on that player
+              map.setView(playerPointsOnCurrentMap[0], 7);
+            } else {
+              // Multiple players: fit bounds to show all players
+              const bounds = L.latLngBounds(playerPointsOnCurrentMap);
+              map.fitBounds(bounds, {
+                padding: [100, 100],
+                maxZoom: 7, // Limit max zoom to stay close
+              });
+            }
+            return;
+          }
+
+          // If no players on current map, switch to map with most players
+          if (playerPointsOnOtherMaps.size > 0) {
+            let bestMapId = '';
+            let maxPlayers = 0;
+            
+            playerPointsOnOtherMaps.forEach((points, mapId) => {
+              if (points.length > maxPlayers) {
+                maxPlayers = points.length;
+                bestMapId = mapId;
+              }
+            });
+
+            if (bestMapId) {
+              handleMapChange(bestMapId);
+              setTimeout(() => {
+                const points = playerPointsOnOtherMaps.get(bestMapId)!;
+                
+                if (points.length === 1) {
+                  // Single player: zoom close
+                  if (mapRef.current) {
+                    mapRef.current.setView(points[0], 7);
+                  }
+                } else {
+                  // Multiple players: fit bounds
+                  const bounds = L.latLngBounds(points);
+                  if (mapRef.current) {
+                    mapRef.current.fitBounds(bounds, {
+                      padding: [100, 100],
+                      maxZoom: 7,
+                    });
+                  }
+                }
+              }, 100);
+            }
+          }
+          return;
+        }
+
+        // Fallback: static route - zoom to last point
+        if (route && route.points && route.points.length > 0) {
+          const lastPoint = route.points[route.points.length - 1];
+          const pointMapId = getDisplayMapId(lastPoint);
+          
+          // Switch map if needed
+          if (pointMapId !== activeMapId) {
+            handleMapChange(pointMapId);
+            setTimeout(() => {
+              const newConfig = MAP_CONFIGS[pointMapId] || config;
+              const pixel = gameToPixelForMap(lastPoint.global_x, lastPoint.global_z, newConfig);
+              const latLng = pixelToLatLng(pixel.x, pixel.y, newConfig);
+              if (mapRef.current) {
+                mapRef.current.setView(latLng, 7); // Closer zoom
+              }
+            }, 100);
+          } else {
+            // Filter points for current map
+            const filteredPoints = filterPointsByMap(route, activeMapId).filter(
+              (p) => !(p.global_x === 0 && p.global_z === 0)
+            );
+            
+            if (filteredPoints.length > 0) {
+              const lastFilteredPoint = filteredPoints[filteredPoints.length - 1];
+              const pixel = gameToPixelForMap(lastFilteredPoint.global_x, lastFilteredPoint.global_z, config);
+              const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+              map.setView(latLng, 7); // Closer zoom
+            }
+          }
+          return;
+        }
+
+        // Fallback: if we have a route layer, use fitBounds
+        if (routeLayerRef.current) {
+          map.fitBounds(routeLayerRef.current.getBounds(), {
             padding: [50, 50],
           });
         }
       },
-    }));
+      focusPlayer: (viewKey: string) => {
+        const map = mapRef.current;
+        if (!map) return;
+
+        const config = getActiveConfig();
+
+        // Find the specific player's route
+        if (realtimeRoutes && realtimeRoutes[viewKey]) {
+          const rt = realtimeRoutes[viewKey];
+          if (rt && rt.points && rt.points.length > 0) {
+            const lastPoint = rt.points[rt.points.length - 1];
+            const pointMapId = getDisplayMapId(lastPoint);
+            
+            // Switch map if needed
+            if (pointMapId !== activeMapId) {
+              handleMapChange(pointMapId);
+              setTimeout(() => {
+                const newConfig = MAP_CONFIGS[pointMapId] || config;
+                const pixel = gameToPixelForMap(lastPoint.global_x, lastPoint.global_z, newConfig);
+                const latLng = pixelToLatLng(pixel.x, pixel.y, newConfig);
+                if (mapRef.current) {
+                  mapRef.current.setView(latLng, 7);
+                }
+              }, 100);
+            } else {
+              // Zoom to this specific player on current map
+              const pixel = gameToPixelForMap(lastPoint.global_x, lastPoint.global_z, config);
+              const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+              map.setView(latLng, 7);
+            }
+          }
+        }
+      },
+    }), [realtimeRoutes, route, activeMapId, getActiveConfig, pixelToLatLng, handleMapChange]);
 
     return (
       <div className="map-wrapper">

@@ -287,6 +287,29 @@
   white-space: nowrap;
 }
 
+.realtime-key-text:hover {
+  color: #d4c4a8;
+}
+
+.realtime-key-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  background: rgba(15, 52, 96, 0.5);
+  border: 1px solid #8b7355;
+  border-radius: 4px;
+  color: #d4c4a8;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.realtime-key-name-input:focus {
+  border-color: #8b7355;
+  box-shadow: 0 0 0 2px rgba(139, 115, 85, 0.3);
+  background: rgba(15, 52, 96, 0.7);
+}
+
 .realtime-key-status {
   display: flex;
   align-items: center;
@@ -296,6 +319,25 @@
 
 .realtime-status-text {
   color: #8892b0;
+}
+
+.realtime-focus-player-btn {
+  background: rgba(139, 115, 85, 0.3);
+  border: 1px solid #8b7355;
+  color: #d4c4a8;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.realtime-focus-player-btn:hover {
+  background: rgba(139, 115, 85, 0.5);
+  border-color: #9b8365;
+  color: #e4d4b8;
 }
 
 .realtime-remove-btn {
