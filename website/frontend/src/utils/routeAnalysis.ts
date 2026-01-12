@@ -18,10 +18,33 @@ export interface MapSegment {
   points: RoutePoint[];
 }
 
+// Extract global_map_id from map_id_str if not present (for backward compatibility)
+function getGlobalMapId(point: RoutePoint): number {
+  // If global_map_id is present, use it
+  if (point.global_map_id !== undefined && point.global_map_id !== null) {
+    return point.global_map_id;
+  }
+  
+  // Otherwise, extract from map_id_str (e.g., "m60_44_36_00" -> 60, "m61_47_41_00" -> 61)
+  if (point.map_id_str) {
+    const match = point.map_id_str.match(/^m(\d+)_/);
+    if (match) {
+      const id = parseInt(match[1], 10);
+      if (!isNaN(id)) {
+        return id;
+      }
+    }
+  }
+  
+  // Default to 60 (Lands Between) if parsing fails
+  return 60;
+}
+
 // Get the display map ID for a point using global_map_id field
 // 60 = Lands Between (m60), 61 = Shadow Realm (m61)
 export function getDisplayMapId(point: RoutePoint): string {
-  if (point.global_map_id === 61) {
+  const globalMapId = getGlobalMapId(point);
+  if (globalMapId === 61) {
     return 'm61';
   }
   return 'm60'; // Default to Lands Between

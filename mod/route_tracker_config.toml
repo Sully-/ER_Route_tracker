@@ -70,9 +70,9 @@ enabled = true
 # Backend API URL for real-time streaming
 # Use http://localhost:5000 for local development
 # Use your server URL for production (e.g., https://your-server.com)
-backend_url = " http://localhost:5192"
+backend_url = "https://er-route-tracker.sulli.tech/"
 
 # Push key for authentication
 # Get one by calling POST /api/keys/generate on your backend
 # Leave empty to disable real-time streaming even if enabled = true
-push_key = "b8964a54-d541-4b33-9d47-8f20c1255e61"
+push_key = ""

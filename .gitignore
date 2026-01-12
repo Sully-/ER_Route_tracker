@@ -35,3 +35,5 @@
 /website/backend/.idea/.idea.RouteTracker/.idea/encodings.xml
 /website/backend/.idea/.idea.RouteTracker/.idea/indexLayout.xml
 /website/backend/.idea/.idea.RouteTracker/.idea/vcs.xml
+/**/dist/**
+/mod/release/**
