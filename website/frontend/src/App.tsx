@@ -2,12 +2,10 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import MapContainer, { MapContainerHandle } from './components/Map/MapContainer';
 import RouteInfo from './components/RouteInfo/RouteInfo';
 import SidePanel from './components/SidePanel/SidePanel';
-import { useRouteLoader } from './hooks/useRouteLoader';
+import { useStaticRoutes } from './hooks/useStaticRoutes';
 import { useRealtimeRoutes } from './hooks/useRealtimeRoutes';
 import { DEFAULT_MAP_ID } from './utils/calibration';
 import './App.css';
-
-type TabMode = 'static' | 'realtime';
 
 interface ViewKeyWithName {
   viewKey: string;
@@ -81,8 +79,7 @@ function parseViewKeysFromUrl(): ViewKeyWithName[] {
  */
 function updateUrlWithViewKeys(
   viewKeys: string[],
-  viewKeyNames: Record<string, string>,
-  activeTab: TabMode
+  viewKeyNames: Record<string, string>
 ): void {
   try {
     const url = new URL(window.location.href);
@@ -97,8 +94,8 @@ function updateUrlWithViewKeys(
     });
     keysToDelete.forEach(key => url.searchParams.delete(key));
     
-    // Only add viewkeys if in realtime mode and have keys
-    if (activeTab === 'realtime' && viewKeys.length > 0) {
+    // Add viewkeys if we have any
+    if (viewKeys.length > 0) {
       viewKeys.forEach((key, index) => {
         const paramIndex = index + 1;
         url.searchParams.set(`viewkey${paramIndex}`, key);
@@ -124,10 +121,6 @@ function App() {
   const initialViewKeysWithNames = initialViewKeysWithNamesRef.current;
   const initialViewKeys = initialViewKeysWithNames.map(v => v.viewKey);
   
-  // If viewkeys are in URL, start in realtime mode
-  const [activeTab, setActiveTab] = useState<TabMode>(
-    initialViewKeys.length > 0 ? 'realtime' : 'static'
-  );
   const [activeMapId, setActiveMapId] = useState<string>(DEFAULT_MAP_ID);
   const [showIcons, setShowIcons] = useState<boolean>(true);
   const [urlViewKeysProcessed, setUrlViewKeysProcessed] = useState(false);
@@ -142,9 +135,45 @@ function App() {
     });
     return initialNames;
   });
+
+  // Route colors mapping (routeId -> color)
+  // routeId can be "static" for static route or viewKey for realtime routes
+  const [routeColors, setRouteColors] = useState<Record<string, string>>(() => {
+    try {
+      const stored = localStorage.getItem('routeColors');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load route colors from localStorage:', error);
+    }
+    return {};
+  });
+
+  // Route visibility mapping (routeId -> visible)
+  // By default, all routes are visible (undefined = visible)
+  const [routeVisibility, setRouteVisibility] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem('routeVisibility');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (error) {
+      console.error('Failed to load route visibility from localStorage:', error);
+    }
+    return {};
+  });
   
-  // Static mode state
-  const { route, error, loadRoute, clearRoute } = useRouteLoader();
+  // Static routes state (multiple routes)
+  const {
+    routes: staticRoutes,
+    routeIds: staticRouteIds,
+    routeNames: staticRouteNames,
+    error: staticError,
+    addRoute: addStaticRoute,
+    removeRoute: removeStaticRoute,
+    updateRouteName: updateStaticRouteName,
+  } = useStaticRoutes();
   
   // Realtime mode state
   const {
@@ -184,8 +213,8 @@ function App() {
     // Only update URL after initial URL viewkeys have been processed
     if (!urlViewKeysProcessed) return;
     
-    updateUrlWithViewKeys(viewKeys, viewKeyNames, activeTab);
-  }, [viewKeys, viewKeyNames, activeTab, urlViewKeysProcessed]);
+    updateUrlWithViewKeys(viewKeys, viewKeyNames);
+  }, [viewKeys, viewKeyNames, urlViewKeysProcessed]);
   
   // Update viewKey names when viewKeys change (remove names for removed keys)
   useEffect(() => {
@@ -202,18 +231,12 @@ function App() {
     });
   }, [viewKeys]);
 
-  // Handle tab change - update URL accordingly
-  const handleTabChange = useCallback((newTab: TabMode) => {
-    setActiveTab(newTab);
-    // URL will be updated by the useEffect above
-  }, []);
-
-  const handleFocusRoute = () => {
-    mapRef.current?.focusRoute();
-  };
-
   const handleFocusPlayer = (viewKey: string) => {
     mapRef.current?.focusPlayer(viewKey);
+  };
+
+  const handleFocusStaticRoute = (routeId: string) => {
+    mapRef.current?.focusStaticRoute(routeId);
   };
   
   const handleUpdateViewKeyName = useCallback((viewKey: string, name: string) => {
@@ -223,65 +246,83 @@ function App() {
     }));
   }, []);
 
+  const handleUpdateRouteColor = useCallback((routeId: string, color: string) => {
+    setRouteColors(prev => {
+      const updated = { ...prev, [routeId]: color };
+      try {
+        localStorage.setItem('routeColors', JSON.stringify(updated));
+      } catch (error) {
+        console.error('Failed to save route colors to localStorage:', error);
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleToggleRouteVisibility = useCallback((routeId: string) => {
+    setRouteVisibility(prev => {
+      const currentVisible = prev[routeId] !== false; // default is visible
+      const updated = { ...prev, [routeId]: !currentVisible };
+      try {
+        localStorage.setItem('routeVisibility', JSON.stringify(updated));
+      } catch (error) {
+        console.error('Failed to save route visibility to localStorage:', error);
+      }
+      return updated;
+    });
+  }, []);
+
   return (
-    <div className={`app ${activeTab === 'realtime' ? 'realtime-mode' : ''}`}>
-      {/* Tab Navigation */}
-      <div className="tab-bar">
-      <h1 className="toolbar-title">Elden Ring Route Viewer</h1>
-      <span className="alpha-badge">⚠️ ALPHA</span>
-        <button
-          className={`tab-button ${activeTab === 'static' ? 'active' : ''}`}
-          onClick={() => handleTabChange('static')}
-        >
-          Static Mode
-        </button>
-        <button
-          className={`tab-button ${activeTab === 'realtime' ? 'active' : ''}`}
-          onClick={() => handleTabChange('realtime')}
-        >
-          Real-time Mode
-        </button>
-      </div>
-      
-      {/* Side Panel - always visible with map selector, toolbar (static mode) and realtime panel (realtime mode) */}
+    <div className="app">
+      {/* Side Panel - always visible with map selector, static routes and realtime routes */}
       <SidePanel
         activeMapId={activeMapId}
         onMapChange={setActiveMapId}
         showIcons={showIcons}
         onToggleIcons={setShowIcons}
-        viewKeys={activeTab === 'realtime' ? viewKeys : []}
-        viewKeyNames={activeTab === 'realtime' ? viewKeyNames : {}}
-        connectionStatus={activeTab === 'realtime' ? connectionStatus : {}}
+        viewKeys={viewKeys}
+        viewKeyNames={viewKeyNames}
+        connectionStatus={connectionStatus}
         onAddViewKey={addViewKey}
         onRemoveViewKey={removeViewKey}
         onUpdateViewKeyName={handleUpdateViewKeyName}
-        onFocusRoute={handleFocusRoute}
         onFocusPlayer={handleFocusPlayer}
-        isRealtimeMode={activeTab === 'realtime'}
-        route={activeTab === 'static' ? route : null}
-        onLoadRoute={activeTab === 'static' ? loadRoute : undefined}
-        onClearRoute={activeTab === 'static' ? clearRoute : undefined}
-        hasRoute={activeTab === 'static' ? route !== null : false}
+        // Static routes props
+        staticRoutes={staticRoutes}
+        staticRouteIds={staticRouteIds}
+        staticRouteNames={staticRouteNames}
+        onAddStaticRoute={addStaticRoute}
+        onRemoveStaticRoute={removeStaticRoute}
+        onUpdateStaticRouteName={updateStaticRouteName}
+        onFocusStaticRoute={handleFocusStaticRoute}
+        routeColors={routeColors}
+        onUpdateRouteColor={handleUpdateRouteColor}
+        routeVisibility={routeVisibility}
+        onToggleRouteVisibility={handleToggleRouteVisibility}
       />
       
-      {/* Map Container - shared between modes */}
+      {/* Map Container - displays both static and realtime routes */}
       <MapContainer
         ref={mapRef}
-        route={activeTab === 'static' ? route : null}
-        realtimeRoutes={activeTab === 'realtime' ? realtimeRoutes : undefined}
-        viewKeyNames={activeTab === 'realtime' ? viewKeyNames : {}}
+        staticRoutes={staticRoutes}
+        staticRouteIds={staticRouteIds}
+        realtimeRoutes={realtimeRoutes}
+        viewKeyNames={viewKeyNames}
         activeMapId={activeMapId}
         onMapChange={setActiveMapId}
         showIcons={showIcons}
+        routeColors={routeColors}
+        routeVisibility={routeVisibility}
       />
       
-      {/* Route Info - only in static mode */}
-      {activeTab === 'static' && <RouteInfo route={route} />}
+      {/* Route Info - shows first static route info when available */}
+      {staticRouteIds.length > 0 && (
+        <RouteInfo route={staticRoutes[staticRouteIds[0]]} />
+      )}
       
       {/* Error Toast */}
-      {(error || realtimeError) && (
+      {(staticError || realtimeError) && (
         <div className="error-toast">
-          {error || realtimeError}
+          {staticError || realtimeError}
         </div>
       )}
     </div>

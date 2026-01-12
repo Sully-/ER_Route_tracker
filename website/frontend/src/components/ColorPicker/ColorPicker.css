@@ -1,0 +1,126 @@
+.color-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.color-picker-container {
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+  border: 2px solid #8b7355;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease-out;
+  min-width: 280px;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.color-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(139, 115, 85, 0.3);
+}
+
+.color-picker-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #d4c4a8;
+}
+
+.color-picker-close {
+  background: transparent;
+  border: none;
+  color: #8892b0;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.2s ease;
+  border-radius: 4px;
+}
+
+.color-picker-close:hover {
+  color: #d4c4a8;
+  background: rgba(139, 115, 85, 0.2);
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.color-picker-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 2px solid rgba(139, 115, 85, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  padding: 0;
+  background: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.color-picker-swatch:hover {
+  transform: scale(1.1);
+  border-color: #8b7355;
+  box-shadow: 0 4px 8px rgba(139, 115, 85, 0.4);
+  z-index: 1;
+}
+
+.color-picker-swatch.selected {
+  border-color: #d4c4a8;
+  border-width: 3px;
+  box-shadow: 0 0 0 2px rgba(212, 196, 168, 0.3), 0 4px 12px rgba(139, 115, 85, 0.5);
+}
+
+.color-picker-checkmark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: bold;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}

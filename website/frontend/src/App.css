@@ -17,109 +17,15 @@ body {
   height: 100vh;
 }
 
-/* Tab Bar */
-.tab-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 48px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(5px);
-  border: 1px solid #8b7355;
-  border-top: none;
-  border-left: none;
-  border-right: none;
-  border-radius: 0 0 4px 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 20px;
-  z-index: 1500;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.tab-button {
-  min-width: 140px;
-  padding: 10px 24px;
-  background: rgba(139, 115, 85, 0.1);
-  border: 1px solid rgba(139, 115, 85, 0.3);
-  border-radius: 6px;
-  color: #8892b0;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-}
-
-.tab-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(139, 115, 85, 0.1), transparent);
-  transition: left 0.5s ease;
-}
-
-.tab-button:hover::before {
-  left: 100%;
-}
-
-.tab-button:hover {
-  color: #d4c4a8;
-  background: rgba(139, 115, 85, 0.2);
-  border-color: rgba(139, 115, 85, 0.5);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(139, 115, 85, 0.2);
-}
-
-.tab-button.active {
-  color: #d4c4a8;
-  background: linear-gradient(135deg, rgba(139, 115, 85, 0.25), rgba(107, 91, 74, 0.2));
-  border-color: #8b7355;
-  box-shadow: 0 0 12px rgba(139, 115, 85, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transform: translateY(0);
-}
-
-.toolbar-title {
-  font-size: 1.2em;
-  color: #d4c4a8;
-  font-weight: normal;
-  margin-right: 20px;
-}
-
-.alpha-badge {
-  background: #5c2e2e;
-  color: #d4c4a8;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 0.75em;
-  font-weight: bold;
-  text-transform: uppercase;
-  animation: pulse 2s infinite;
-  border: 1px solid #4a1f1f;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
 .map-container {
   position: absolute;
-  top: 48px; /* Only tab-bar height - toolbar is now in side panel */
+  top: 0;
   left: 320px; /* Always leave space for side panel */
   right: 0;
   bottom: 0;
   background: transparent;
   overflow: hidden; /* Hide any overflow from map */
-  transition: left 0.3s ease, top 0.3s ease;
+  transition: left 0.3s ease;
 }
 
 /* Custom Leaflet styles */
