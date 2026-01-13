@@ -23,7 +23,7 @@ by johndisandonato, also licensed under AGPL-3.0.
 - [x] Export route to JSON file
 - [x] Real-time position streaming to backend endpoint for live tracking
 
-### Web Viewer (React + Leaflet.js) https://sulli.tech/ER_Route_tracker/
+### Web Viewer (React + Leaflet.js) https://er-route-tracker.sulli.tech/
 - [x] Interactive world map with tile-based rendering
 - [x] Load and display recorded routes
 - [x] Start/End markers
@@ -42,7 +42,6 @@ by johndisandonato, also licensed under AGPL-3.0.
 - [ ] Event tracking (item pickup, death, grace activation...)
 
 ### website
-- [x] Underground map
 - [ ] Event icons on map (item pickup, death, grace activation...)
 - [ ] Timelapse playback mode
 

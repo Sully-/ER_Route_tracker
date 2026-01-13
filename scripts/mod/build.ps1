@@ -5,7 +5,7 @@
 param(
     [switch]$Release,
     [switch]$Package,
-    [string]$Version = "0.1.1-alpha",
+    [string]$Version = "0.3.0-alpha",
     [string]$OutputDir = "dist",
     [string]$ReleaseDir = "release"
 )
