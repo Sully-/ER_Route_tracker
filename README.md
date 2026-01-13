@@ -28,9 +28,9 @@ by johndisandonato, also licensed under AGPL-3.0.
 - [x] Load and display recorded routes
 - [x] Start/End markers
 - [x] Auto-focus on routes
-- [x] DLC maps (Shadow Realm) support
+- [x] DLC maps (Shadow Realm) and Underground map support
 - [x] Location icons (graces, bosses, merchants, etc.) with popups
-- [x] Map transitions (Lands Between ↔ Shadow Realm)
+- [x] Map transitions (Lands Between ↔ Shadow Realm ↔ Underground)
 - [x] Teleportation markers (departure/arrival) for intra-map and inter-map teleports
 - [x] Automatic zoom on map transitions
 - [x] Icon visibility toggle
@@ -42,7 +42,7 @@ by johndisandonato, also licensed under AGPL-3.0.
 - [ ] Event tracking (item pickup, death, grace activation...)
 
 ### website
-- [ ] Underground map
+- [x] Underground map
 - [ ] Event icons on map (item pickup, death, grace activation...)
 - [ ] Timelapse playback mode
 

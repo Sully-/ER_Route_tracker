@@ -16,7 +16,7 @@ interface UseMapIconsResult {
 
 interface UseMapIconsOptions {
   category?: MapIconCategory;
-  mapId?: string; // 'm60' or 'm61' to filter by map
+  mapId?: string; // 'm60', 'm61', or 'm62' to filter by map
 }
 
 export function useMapIcons(options: UseMapIconsOptions = {}): UseMapIconsResult {
@@ -88,7 +88,13 @@ export function useMapIcons(options: UseMapIconsOptions = {}): UseMapIconsResult
 
     // Filter by map ID if specified
     if (mapId) {
-      icons = icons.filter((icon) => icon.mapId === mapId);
+      if (mapId === 'm62') {
+        // Underground: filter by areaNo === 12 (icons have mapId 'm60' but should appear on m62)
+        icons = icons.filter((icon) => icon.areaNo === 12);
+      } else {
+        // Other maps: filter by mapId field, excluding underground icons (areaNo === 12) from m60
+        icons = icons.filter((icon) => icon.mapId === mapId && icon.areaNo !== 12);
+      }
     }
 
     return icons;

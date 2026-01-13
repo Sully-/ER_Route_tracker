@@ -369,7 +369,7 @@ impl WorldPositionTransformer {
     /// Convert local coordinates to world coordinates and return the global map ID
     /// 
     /// Returns (global_x, global_y, global_z, global_map_area_no)
-    /// where global_map_area_no is 60 for Lands Between or 61 for Shadow Realm
+    /// where global_map_area_no is 60 for Lands Between, 61 for Shadow Realm, or 62 for Underground
     pub fn local_to_world_with_global_map(&self, map_id: u32, x: f32, y: f32, z: f32) -> Result<(f32, f32, f32, u8), TransformError> {
         let (area_no, grid_x, grid_z, _) = Self::parse_map_id(map_id);
         
@@ -388,7 +388,9 @@ impl WorldPositionTransformer {
             // Try to find a direct anchor to m60 first
             if let Some(anchor) = anchor_list.iter().find(|a| a.dst_area_no == 60) {
                 let (gx, gy, gz) = Self::apply_anchor_and_convert_to_global(x, y, z, anchor);
-                return Ok((gx, gy, gz, 60));
+                // Special case: area_no 12 (Underground) maps to m60 coordinates but should be identified as m62
+                let global_map_id = if area_no == 12 { 62 } else { 60 };
+                return Ok((gx, gy, gz, global_map_id));
             }
             // Then try m61
             if let Some(anchor) = anchor_list.iter().find(|a| a.dst_area_no == 61) {
@@ -401,7 +403,9 @@ impl WorldPositionTransformer {
         if let Some(path) = self.paths_to_global.get(&key) {
             let (gx, gy, gz) = self.apply_path_to_global(x, y, z, path);
             let global_map_area = path.final_global_tile.0;
-            return Ok((gx, gy, gz, global_map_area));
+            // Special case: area_no 12 (Underground) should be identified as m62
+            let global_map_id = if area_no == 12 && global_map_area == 60 { 62 } else { global_map_area };
+            return Ok((gx, gy, gz, global_map_id));
         }
         
         Err(TransformError::UnknownMap(Self::format_map_id(map_id)))

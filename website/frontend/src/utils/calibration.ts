@@ -56,6 +56,27 @@ export const MAP_CONFIGS: Record<string, MapConfig> = {
       { gameX: 11070.19, gameZ: 11137.88, pixelX: 995, pixelY: 3509 },  // Cleansing Chamber Anteroom
     ],
   },
+  m62: {
+    id: 'm62',
+    name: 'Underground',
+    tilePath: 'tiles_underground',
+    width: 9645,
+    height: 9119,
+    paddedSize: 16384, // 2^6 * 256
+    maxZoom: 6,
+    tileSize: 256,
+    // Calibration points - to be provided by user
+    // Contains: Deeproot Depths, Ainsel River, Siofra River
+    calibrationPoints: [
+      { gameX: 10739.17, gameZ: 9161.5, pixelX: 3697, pixelY: 7345 },    // The First Step
+      { gameX: 10976.9, gameZ: 7667.36, pixelX: 3933, pixelY: 8851 },    // Morne Moangrave
+      { gameX: 13268.46, gameZ: 9686.11, pixelX: 6239, pixelY: 6806 },   // Starscourge Radahn
+      { gameX: 13793.61, gameZ: 14142.3, pixelX: 6754, pixelY: 2363 },   // First Church of Marika
+      { gameX: 8416.3, gameZ: 10819.95, pixelX: 1376, pixelY: 5692 },    // Ringleader's Evergaol
+      { gameX: 8612.52, gameZ: 10909.29, pixelX: 1576, pixelY: 5578 },   // Converted Tower
+      { gameX: 9919.3, gameZ: 12719.86, pixelX: 2878, pixelY: 3791 },    // Golden Lineage Evergaol
+    ],
+  },
 };
 
 // Default map (Lands Between)
@@ -63,7 +84,7 @@ export const DEFAULT_MAP_ID = 'm60';
 
 // Get map config from map_id_str (e.g., "m60_42_36_00" -> m60 config)
 export function getMapConfigFromId(mapIdStr: string): MapConfig {
-  const prefix = mapIdStr.substring(0, 3); // "m60" or "m61"
+  const prefix = mapIdStr.substring(0, 3); // "m60", "m61", or "m62"
   return MAP_CONFIGS[prefix] || MAP_CONFIGS[DEFAULT_MAP_ID];
 }
 

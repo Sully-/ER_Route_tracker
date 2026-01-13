@@ -41,9 +41,12 @@ function getGlobalMapId(point: RoutePoint): number {
 }
 
 // Get the display map ID for a point using global_map_id field
-// 60 = Lands Between (m60), 61 = Shadow Realm (m61)
+// 60 = Lands Between (m60), 61 = Shadow Realm (m61), 62 = Underground (m62)
 export function getDisplayMapId(point: RoutePoint): string {
   const globalMapId = getGlobalMapId(point);
+  if (globalMapId === 62) {
+    return 'm62';
+  }
   if (globalMapId === 61) {
     return 'm61';
   }

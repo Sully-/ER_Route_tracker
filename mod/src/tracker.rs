@@ -195,7 +195,9 @@ impl RouteTracker {
                 .unwrap_or_else(|_| {
                     // Fallback: if conversion fails, determine global map from map_id
                     let (area_no, _, _, _) = WorldPositionTransformer::parse_map_id(map_id);
-                    let fallback_global_map = if area_no == 60 || area_no == 61 {
+                    let fallback_global_map = if area_no == 12 {
+                        62 // Underground (m62)
+                    } else if area_no == 60 || area_no == 61 {
                         area_no
                     } else {
                         60 // Default to m60 if unknown
@@ -263,7 +265,9 @@ impl RouteTracker {
                 .unwrap_or_else(|_| {
                     // Fallback: if conversion fails, determine global map from map_id
                     let (area_no, _, _, _) = WorldPositionTransformer::parse_map_id(map_id);
-                    let fallback_global_map = if area_no == 60 || area_no == 61 {
+                    let fallback_global_map = if area_no == 12 {
+                        62 // Underground (m62)
+                    } else if area_no == 60 || area_no == 61 {
                         area_no
                     } else {
                         60 // Default to m60 if unknown
