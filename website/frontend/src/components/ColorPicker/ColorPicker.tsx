@@ -36,8 +36,8 @@ export default function ColorPicker({ selectedColor, onColorSelect, onClose }: C
     <div className="color-picker-overlay" onClick={onClose}>
       <div className="color-picker-container" ref={containerRef} onClick={(e) => e.stopPropagation()}>
         <div className="color-picker-header">
-          <span className="color-picker-title">Sélectionner une couleur</span>
-          <button className="color-picker-close" onClick={onClose} title="Fermer">
+          <span className="color-picker-title">Select a color</span>
+          <button className="color-picker-close" onClick={onClose} title="Close">
             ×
           </button>
         </div>

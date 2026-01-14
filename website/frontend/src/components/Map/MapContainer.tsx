@@ -753,7 +753,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           const arrPixel = gameToPixelForMap(arrivalCoord.x, arrivalCoord.z, config);
           const arrLatLng = pixelToLatLng(arrPixel.x, arrPixel.y, config);
           
-          depMarker.bindTooltip(`⚡ TP #${index + 1} Départ → Clic pour aller à l'arrivée`, {
+          depMarker.bindTooltip(`⚡ TP #${index + 1} Departure → Click to go to arrival`, {
             direction: 'top',
             offset: [0, -10],
           });
@@ -771,7 +771,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             zIndexOffset: 2000,
           }).addTo(map);
           
-          arrMarker.bindTooltip(`⚡ TP #${index + 1} Arrivée → Clic pour aller au départ`, {
+          arrMarker.bindTooltip(`⚡ TP #${index + 1} Arrival → Click to go to departure`, {
             direction: 'top',
             offset: [0, -10],
           });
@@ -794,7 +794,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             zIndexOffset: 2000,
           }).addTo(map);
           
-          marker.bindTooltip(`🌍 Transition #${index + 1} → ${arrivalMapName}<br>Clic pour y aller`, {
+          marker.bindTooltip(`🌍 Transition #${index + 1} → ${arrivalMapName}<br>Click to go there`, {
             direction: 'top',
             offset: [0, -10],
           });
@@ -817,7 +817,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             zIndexOffset: 2000,
           }).addTo(map);
           
-          marker.bindTooltip(`🌍 Transition #${index + 1} ← ${departureMapName}<br>Clic pour y retourner`, {
+          marker.bindTooltip(`🌍 Transition #${index + 1} ← ${departureMapName}<br>Click to go back`, {
             direction: 'top',
             offset: [0, -10],
           });

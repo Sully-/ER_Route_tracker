@@ -333,16 +333,16 @@ function SidePanel({
             onClick={() => onToggleIcons(!showIcons)}
             className={`icon-toggle-btn ${showIcons ? 'active' : ''}`}
           >
-            {showIcons ? '🗺️ Icônes ON' : '🗺️ Icônes OFF'}
+            {showIcons ? '🗺️ Icons ON' : '🗺️ Icons OFF'}
           </button>
           {showIcons && !iconsLoading && (
             <span className="icon-count">
-              {icons.length} icônes
+              {icons.length} icons
             </span>
           )}
           {iconsLoading && (
             <span className="icon-count">
-              Chargement...
+              Loading...
             </span>
           )}
         </div>
@@ -350,7 +350,7 @@ function SidePanel({
           <div className="transitions-info">
             <span className="transitions-icon">⟳</span>
             {transitions.length} transition
-            {transitions.length > 1 ? 's' : ''} dans la route
+            {transitions.length > 1 ? 's' : ''} in route
           </div>
         )}
       </div>
@@ -386,13 +386,13 @@ function SidePanel({
                   <button
                     className="realtime-key-color-btn"
                     onClick={() => handleOpenColorPicker(routeId)}
-                    title="Changer la couleur"
+                    title="Change color"
                     style={{ backgroundColor: routeColor }}
                   />
                   <button
                     className="route-visibility-btn"
                     onClick={() => onToggleRouteVisibility?.(routeId)}
-                    title={isVisible ? "Masquer la route" : "Afficher la route"}
+                    title={isVisible ? "Hide route" : "Show route"}
                   >
                     {isVisible ? '👁️' : '👁️‍🗨️'}
                   </button>
@@ -405,14 +405,14 @@ function SidePanel({
                       onChange={(e) => setEditingName(e.target.value)}
                       onBlur={() => handleSaveStaticRouteName(routeId)}
                       onKeyDown={(e) => handleStaticRouteNameKeyDown(e, routeId)}
-                      placeholder="Nom de la route"
+                      placeholder="Route name"
                       maxLength={50}
                     />
                   ) : (
                     <span
                       className="realtime-key-text"
                       onClick={() => handleStartEditingStaticRouteName(routeId)}
-                      title="Cliquez pour éditer le nom"
+                      title="Click to edit name"
                       style={{ cursor: 'pointer' }}
                     >
                       {getStaticRouteDisplayName(routeId)}
@@ -421,14 +421,14 @@ function SidePanel({
                   <button
                     className="realtime-focus-player-btn"
                     onClick={() => onFocusStaticRoute?.(routeId)}
-                    title="Focus sur cette route"
+                    title="Focus on this route"
                   >
                     Focus
                   </button>
                   <button
                     className="realtime-remove-btn"
                     onClick={() => onRemoveStaticRoute?.(routeId)}
-                    title="Supprimer"
+                    title="Remove"
                   >
                     ×
                   </button>
@@ -440,9 +440,9 @@ function SidePanel({
 
         {staticRouteIds.length === 0 && (
           <div className="realtime-empty">
-            <p>Aucune route statique chargée.</p>
+            <p>No static route loaded.</p>
             <p className="realtime-hint">
-              Cliquez sur "Load Route" pour charger un fichier JSON.
+              Click "Load Route" to load a JSON file.
             </p>
           </div>
         )}
@@ -542,13 +542,13 @@ function SidePanel({
                   <button
                     className="realtime-key-color-btn"
                     onClick={() => handleOpenColorPicker(key)}
-                    title="Changer la couleur"
+                    title="Change color"
                     style={{ backgroundColor: routeColor }}
                   />
                   <button
                     className="route-visibility-btn"
                     onClick={() => onToggleRouteVisibility?.(key)}
-                    title={isVisible ? "Masquer la route" : "Afficher la route"}
+                    title={isVisible ? "Hide route" : "Show route"}
                   >
                     {isVisible ? '👁️' : '👁️‍🗨️'}
                   </button>
@@ -561,14 +561,14 @@ function SidePanel({
                       onChange={(e) => setEditingName(e.target.value)}
                       onBlur={() => handleSaveName(key)}
                       onKeyDown={(e) => handleNameInputKeyDown(e, key)}
-                      placeholder="Nom du joueur"
+                      placeholder="Player name"
                       maxLength={50}
                     />
                   ) : (
                     <span
                       className="realtime-key-text"
                       onClick={() => handleStartEditingName(key)}
-                      title="Cliquez pour éditer le nom"
+                      title="Click to edit name"
                       style={{ cursor: 'pointer' }}
                     >
                       {getDisplayName(key)}
