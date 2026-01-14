@@ -1,263 +1,194 @@
 # Route Tracker - Elden Ring Mod
 
-> ⚠️ **Alpha Version** - Under active development
-
+> **Alpha Version** - Under active development
 
 A mod for Elden Ring that records player position to track speedrun routes, with an interactive map viewer.
 
-## License
+**Live Viewer:** https://er-route-tracker.sulli.tech/
 
-This project is licensed under **GNU Affero General Public License v3.0** (AGPL-3.0).
+## Features
 
-This project uses code from [eldenring-practice-tool](https://github.com/veeenu/eldenring-practice-tool) 
-by johndisandonato, also licensed under AGPL-3.0.
+### Mod (In-Game Tracker)
+- Display current player position (X, Y, Z, Map ID)
+- Record routes with configurable interval
+- Export routes to JSON files
+- Real-time position streaming for live tracking
+- Configurable hotkeys
 
-## Current Features
-
-### Tracker (Rust DLL)
-- [x] Display current player position (X, Y, Z, Map ID)
-- [x] Display global world coordinates (converted from local tile coordinates)
-- [x] Record route with configurable interval
-- [x] Configurable hotkeys with modifier support
-- [x] Built-in DLL injector
-- [x] Export route to JSON file
-- [x] Real-time position streaming to backend endpoint for live tracking
-
-### Web Viewer (React + Leaflet.js) https://er-route-tracker.sulli.tech/
-- [x] Interactive world map with tile-based rendering
-- [x] Load and display recorded routes
-- [x] Start/End markers
-- [x] Auto-focus on routes
-- [x] DLC maps (Shadow Realm) and Underground map support
-- [x] Location icons (graces, bosses, merchants, etc.) with popups
-- [x] Map transitions (Lands Between ↔ Shadow Realm ↔ Underground)
-- [x] Teleportation markers (departure/arrival) for intra-map and inter-map teleports
-- [x] Automatic zoom on map transitions
-- [x] Icon visibility toggle
-- [x] Real-time live tracking of player position via SignalR
+### Web Viewer
+- Interactive world map (Lands Between, Shadow Realm DLC, Underground)
+- Load and display recorded routes
+- Real-time live tracking of player position
+- Location icons (graces, bosses, merchants, etc.)
+- Teleportation and map transition markers
 
 ## Roadmap
 
-### Tracker
+### Mod
 - [ ] Event tracking (item pickup, death, grace activation...)
 
-### website
+### Website
 - [ ] Event icons on map (item pickup, death, grace activation...)
 - [ ] Timelapse playback mode
 
-## Project Structure
+---
 
-```
-Route_tracking/
-├── mod/                              # Rust mod (DLL + Injector)
-│   ├── src/
-│   │   ├── lib.rs                    # Main mod code (DLL)
-│   │   ├── config.rs                 # Configuration & hotkey parsing
-│   │   ├── route.rs                  # Route data structures
-│   │   ├── tracker.rs                # Position tracking logic
-│   │   ├── coordinate_transformer.rs # Local → Global coordinate conversion
-│   │   ├── realtime_client.rs        # Real-time streaming client
-│   │   ├── ui.rs                     # ImGui overlay
-│   │   ├── injector.rs               # Standalone injector (EXE)
-│   │   └── WorldMapLegacyConvParam.csv
-│   ├── Cargo.toml
-│   ├── Cargo.lock
-│   ├── build.rs
-│   └── route_tracker_config.toml     # Configuration template
-│
-├── website/                          # Web application
-│   ├── backend/                      # ASP.NET Core API
-│   │   ├── Controllers/
-│   │   ├── Hubs/                     # SignalR hub
-│   │   ├── Models/
-│   │   ├── Services/
-│   │   ├── Program.cs
-│   │   └── RouteTracker.csproj
-│   │
-│   └── frontend/                     # React + Vite application
-│       ├── src/
-│       ├── public/
-│       ├── package.json
-│       └── vite.config.ts
-│
-├── docs/                             # Documentation
-│   ├── DATABASE_SETUP.md             # Initial database setup
-│   ├── DAILY_DEPLOYMENT.md           # Daily deployment guide
-│   └── UBUNTU_DEPLOYMENT_GUIDE.md    # Initial Ubuntu setup
-│
-├── scripts/                          # Build & deployment scripts
-│   ├── mod/
-│   │   └── build.ps1                 # Mod build script
-│   └── website/
-│       ├── backend/
-│       │   └── database/             # Standalone DB scripts
-│       │       ├── setup-database.sql
-│       │       └── setup-database.sh
-│       └── deploy/
-│           └── package.ps1           # Daily packaging script
-│
-├── .gitignore
-├── LICENSE
-└── README.md
-```
+## Installation
 
-## Prerequisites
+### Required Files
 
-- Rust toolchain (edition 2021)
-- Windows target: `x86_64-pc-windows-msvc`
-- Elden Ring with [EAC bypass](https://soulsspeedruns.com/eldenring/eac-bypass/)
-- Node.js 18+ (for the frontend)
-- .NET 10.0+ (for the backend)
-
-## Building the Mod
-
-```powershell
-cd mod
-cargo build --release
-```
-
-Or use the build script:
-```powershell
-.\scripts\mod\build.ps1 -Release
-```
-
-This generates:
-- `mod/target/release/route_tracking.dll` - The mod DLL
-- `mod/target/release/route-tracker-injector.exe` - The injector
-
-## Installation & Usage
-
-### 1. Prepare the files
-
-Copy these files to the same folder:
+Download the latest release and copy these files to the same folder:
 - `route_tracking.dll`
 - `route-tracker-injector.exe`
 - `route_tracker_config.toml` (required!)
 - `WorldMapLegacyConvParam.csv` (required for coordinate conversion)
 
-### 2. Configure (optional)
+### Prerequisites
 
-Edit `route_tracker_config.toml` to customize hotkeys:
+- Elden Ring with [EAC bypass](https://soulsspeedruns.com/eldenring/eac-bypass/)
 
-```toml
-[keybindings]
-toggle_ui = "f9"                                      # Show/hide overlay
-toggle_recording = "ctrl+r"                           # Start/stop recording
-toggle_streaming = "f6"                               # Start/stop real-time streaming
-save_route = "ctrl+s"                                 # Save route to file
-clear_route = "ctrl+shift+c"                          # Clear recorded route
-
-[recording]
-record_interval_ms = 100                              # Record position every 100ms
-
-[output]
-routes_directory = "routes"                           # Where to save route files
-
-[realtime]
-enabled = false                                       # Enable real-time streaming
-backend_url = "https://er-route-tracker.sulli.tech/"  # Backend API URL
-push_key = ""                                         # Push key for authentication (get from backend)
-```
-
-**Hotkey format:**
-- Simple key: `"f9"`, `"a"`, `"insert"`
-- With modifier: `"ctrl+f9"`, `"shift+a"`, `"alt+1"`
-- Multiple modifiers: `"ctrl+shift+s"`, `"ctrl+alt+delete"`
-
-### 3. Launch
+### Launch
 
 1. Start Elden Ring (with EAC bypass)
 2. Run `route-tracker-injector.exe` (as Administrator recommended)
 3. The injector will wait for the game if not running, then inject automatically
 
-### 4. In-game controls
+---
 
-Default hotkeys (configurable):
-- **F9** - Toggle overlay visibility
-- **Ctrl+R** - Start/Stop recording
-- **F6** - Start/Stop real-time streaming to backend
-- **Ctrl+S** - Save current route to JSON
-- **Ctrl+Shift+C** - Clear recorded route
+## Usage
 
-### 5. Real-time streaming (optional)
+### In-Game Controls
 
-To enable real-time streaming to the backend:
+Default hotkeys (configurable in `route_tracker_config.toml`):
 
-1. Set up the backend server (see [Backend & Database Setup](#backend--database-setup))
-2. Generate a push key from the backend API
-3. Edit `route_tracker_config.toml`:
-   ```toml
-   [realtime]
-   enabled = true
-   backend_url = "https://er-route-tracker.sulli.tech/"  # Your backend URL
-   push_key = "your-push-key-here"                       # Get from backend
-   ```
-4. Use **F6** (default) to start/stop streaming
+| Hotkey | Action |
+|--------|--------|
+| **F9** | Toggle overlay visibility |
+| **Ctrl+R** | Start/Stop recording |
+| **Ctrl+S** | Save current route to JSON |
+| **Ctrl+Shift+C** | Clear recorded route |
+| **F6** | Start/Stop real-time streaming |
 
-The viewer can then track routes in real-time using the corresponding view key.
+### Recording a Route
 
-### 6. View your routes
+1. Press **F9** to show the overlay
+2. Press **Ctrl+R** to start recording
+3. Play the game - your position is recorded automatically
+4. Press **Ctrl+R** to stop recording
+5. Press **Ctrl+S** to save the route to a JSON file
 
-See [website/frontend/README.md](website/frontend/README.md) for the interactive map viewer.
+Routes are saved in the `routes/` folder (configurable).
 
-## Backend & Database Setup
+### Customizing Hotkeys
 
-The project includes an ASP.NET Core backend with PostgreSQL for real-time tracking features.
+Edit `route_tracker_config.toml`:
 
-### Database Setup (Production)
+```toml
+[keybindings]
+toggle_ui = "f9"
+toggle_recording = "ctrl+r"
+toggle_streaming = "f6"
+save_route = "ctrl+s"
+clear_route = "ctrl+shift+c"
 
-The SQL scripts are standalone and don't require the source code:
+[recording]
+record_interval_ms = 100
 
-```bash
-# On the server, copy the files:
-# - scripts/website/backend/database/setup-database.sql
-# - scripts/website/backend/database/setup-database.sh
-
-chmod +x setup-database.sh
-sudo -u postgres ./setup-database.sh
+[output]
+routes_directory = "routes"
 ```
 
-### Packaging for Deployment
+**Hotkey format:**
+- Simple key: `"f9"`, `"a"`, `"insert"`
+- With modifier: `"ctrl+f9"`, `"shift+a"`, `"alt+1"`
+- Multiple modifiers: `"ctrl+shift+s"`
 
-```powershell
-# On Windows, create the packages
-.\scripts\website\deploy\package.ps1 -BackendUrl "http://server:5000"
+---
+
+## Real-Time Streaming
+
+Stream your position live so others can watch your route in real-time on the web viewer.
+
+### Step 1: Get Your Keys
+
+1. Go to https://er-route-tracker.sulli.tech/
+2. Open the side panel (arrow on the left)
+3. In the "Real-time Tracking" section, click **"Generate New Keys"**
+4. You will receive two keys:
+   - **Push Key (Writer)**: Keep this private! Used by the mod to send your position
+   - **View Key (Reader)**: Share this with viewers so they can watch your route
+
+### Step 2: Configure the Mod
+
+Edit `route_tracker_config.toml`:
+
+```toml
+[realtime]
+enabled = true
+backend_url = "https://er-route-tracker.sulli.tech/"
+push_key = "your-push-key-here"
 ```
 
-### Documentation
+### Step 3: Start Streaming
 
-- [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) - Database configuration
-- [docs/DAILY_DEPLOYMENT.md](docs/DAILY_DEPLOYMENT.md) - Daily deployment
-- [docs/UBUNTU_DEPLOYMENT_GUIDE.md](docs/UBUNTU_DEPLOYMENT_GUIDE.md) - Initial Ubuntu setup
+1. Launch the mod
+2. Press **F6** to start streaming
+3. Your position is now being sent to the server in real-time
 
-## Configuration file
+### Step 4: Share Your View Key
 
-The `route_tracker_config.toml` file **must exist** next to the DLL. The mod will fail to load without it.
+Give your **View Key** to anyone who wants to watch your route:
+1. They go to https://er-route-tracker.sulli.tech/
+2. They paste your View Key in the "Real-time Tracking" section
+3. They click "Add" and your route appears live on the map
 
-### Valid key names
+---
 
-| Category | Keys |
-|----------|------|
-| Letters | `a` - `z` |
-| Numbers | `0` - `9` |
-| Function | `f1` - `f12` |
-| Numpad | `numpad0` - `numpad9`, `num0` - `num9` |
-| Modifiers | `ctrl`, `shift`, `alt` |
-| Navigation | `insert`, `delete`, `home`, `end`, `pageup`, `pagedown` |
-| Arrows | `up`, `down`, `left`, `right` |
-| Special | `escape`, `enter`, `space`, `tab`, `backspace` |
+## Viewing Routes
 
-Key names are case-insensitive.
+### Load a Static Route (JSON File)
+
+1. Go to https://er-route-tracker.sulli.tech/
+2. Click the **"Load Route"** button in the toolbar
+3. Select your JSON route file
+4. The route is displayed on the map
+
+### Watch a Live Route
+
+1. Go to https://er-route-tracker.sulli.tech/
+2. Open the side panel
+3. In "Real-time Tracking", paste the **View Key**
+4. Click "Add"
+5. The route appears and updates in real-time
+
+### Map Navigation
+
+- **Scroll** to zoom in/out
+- **Click and drag** to pan
+- Use the **map selector** to switch between:
+  - Lands Between
+  - Shadow Realm (DLC)
+  - Underground
+- Toggle **location icons** (graces, bosses, etc.) with the icons button
+
+---
+
+## License
+
+This project is licensed under **GNU Affero General Public License v3.0** (AGPL-3.0).
+
+This project uses code from [eldenring-practice-tool](https://github.com/veeenu/eldenring-practice-tool) by johndisandonato, also licensed under AGPL-3.0.
 
 ## Attribution
 
-This project is based on the work of:
 - **johndisandonato** - [eldenring-practice-tool](https://github.com/veeenu/eldenring-practice-tool)
 - **veeenu** - [hudhook](https://github.com/veeenu/hudhook)
+- **Smithbox** - [vawser/Smithbox](https://github.com/vawser/Smithbox)
 
-### Tools
+## For Developers
 
-- **Smithbox** - [vawser/Smithbox](https://github.com/vawser/Smithbox) - Essential modding tool for Elden Ring (Param Editor, Map Editor, etc.)
+- [mod/README.md](mod/README.md) - Building and developing the mod
+- [website/README.md](website/README.md) - Building and developing the website
 
 ## Contributing
 
