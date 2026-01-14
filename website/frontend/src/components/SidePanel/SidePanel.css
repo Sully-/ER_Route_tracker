@@ -382,6 +382,49 @@
   color: #e4d4b8;
 }
 
+/* Track button for active tracking */
+.realtime-track-btn {
+  background: rgba(139, 115, 85, 0.3);
+  border: 1px solid #8b7355;
+  color: #d4c4a8;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.realtime-track-btn:hover {
+  background: rgba(139, 115, 85, 0.5);
+  border-color: #9b8365;
+  color: #e4d4b8;
+}
+
+.realtime-track-btn.active {
+  background: linear-gradient(135deg, #4a7355, #3a5b4a);
+  border-color: #5a8365;
+  color: #c4e4b8;
+  box-shadow: 0 0 8px rgba(74, 115, 85, 0.4);
+  animation: trackingPulse 2s infinite;
+}
+
+.realtime-track-btn.active:hover {
+  background: linear-gradient(135deg, #5a8365, #4a6b5a);
+  border-color: #6a9375;
+  box-shadow: 0 0 12px rgba(74, 115, 85, 0.6);
+}
+
+@keyframes trackingPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(74, 115, 85, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(74, 115, 85, 0.7);
+  }
+}
+
 .realtime-remove-btn {
   background: transparent;
   border: none;

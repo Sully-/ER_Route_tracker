@@ -163,6 +163,10 @@ function App() {
     }
     return {};
   });
+
+  // Active tracking state - which realtime route is being actively tracked (auto-focus)
+  // Only one route can be tracked at a time
+  const [trackedViewKey, setTrackedViewKey] = useState<string | null>(null);
   
   // Static routes state (multiple routes)
   const {
@@ -231,6 +235,14 @@ function App() {
     });
   }, [viewKeys]);
 
+  // Auto-untrack if the tracked route is removed
+  useEffect(() => {
+    if (trackedViewKey && !viewKeys.includes(trackedViewKey)) {
+      console.log(`[Active Tracking] Tracked route ${trackedViewKey} was removed, stopping tracking`);
+      setTrackedViewKey(null);
+    }
+  }, [viewKeys, trackedViewKey]);
+
   const handleFocusPlayer = (viewKey: string) => {
     mapRef.current?.focusPlayer(viewKey);
   };
@@ -271,6 +283,11 @@ function App() {
     });
   }, []);
 
+  // Handler for setting/unsetting the actively tracked route
+  const handleSetTrackedRoute = useCallback((viewKey: string | null) => {
+    setTrackedViewKey(viewKey);
+  }, []);
+
   return (
     <div className="app">
       {/* Side Panel - always visible with map selector, static routes and realtime routes */}
@@ -286,6 +303,9 @@ function App() {
         onRemoveViewKey={removeViewKey}
         onUpdateViewKeyName={handleUpdateViewKeyName}
         onFocusPlayer={handleFocusPlayer}
+        // Active tracking props
+        trackedViewKey={trackedViewKey}
+        onSetTrackedRoute={handleSetTrackedRoute}
         // Static routes props
         staticRoutes={staticRoutes}
         staticRouteIds={staticRouteIds}
@@ -312,6 +332,7 @@ function App() {
         showIcons={showIcons}
         routeColors={routeColors}
         routeVisibility={routeVisibility}
+        trackedViewKey={trackedViewKey}
       />
       
       {/* Route Info - shows first static route info when available */}

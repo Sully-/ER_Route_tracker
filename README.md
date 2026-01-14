@@ -141,22 +141,22 @@ Edit `route_tracker_config.toml` to customize hotkeys:
 
 ```toml
 [keybindings]
-toggle_ui = "f9"              # Show/hide overlay
-toggle_recording = "ctrl+r"   # Start/stop recording
-toggle_streaming = "f6"       # Start/stop real-time streaming
-save_route = "ctrl+s"         # Save route to file
-clear_route = "ctrl+shift+c"  # Clear recorded route
+toggle_ui = "f9"                                      # Show/hide overlay
+toggle_recording = "ctrl+r"                           # Start/stop recording
+toggle_streaming = "f6"                               # Start/stop real-time streaming
+save_route = "ctrl+s"                                 # Save route to file
+clear_route = "ctrl+shift+c"                          # Clear recorded route
 
 [recording]
-record_interval_ms = 100      # Record position every 100ms
+record_interval_ms = 100                              # Record position every 100ms
 
 [output]
-routes_directory = "routes"   # Where to save route files
+routes_directory = "routes"                           # Where to save route files
 
 [realtime]
-enabled = false               # Enable real-time streaming
-backend_url = "http://localhost:5192"  # Backend API URL
-push_key = ""                 # Push key for authentication (get from backend)
+enabled = false                                       # Enable real-time streaming
+backend_url = "https://er-route-tracker.sulli.tech/"  # Backend API URL
+push_key = ""                                         # Push key for authentication (get from backend)
 ```
 
 **Hotkey format:**
@@ -189,8 +189,8 @@ To enable real-time streaming to the backend:
    ```toml
    [realtime]
    enabled = true
-   backend_url = "http://localhost:5192"  # Your backend URL
-   push_key = "your-push-key-here"         # Get from backend
+   backend_url = "https://er-route-tracker.sulli.tech/"  # Your backend URL
+   push_key = "your-push-key-here"                       # Get from backend
    ```
 4. Use **F6** (default) to start/stop streaming
 

@@ -18,11 +18,11 @@ import {
   DEFAULT_MAP_ID,
 } from '../../utils/calibration';
 import {
-  detectMapTransitions,
+  detectAllJumps,
   filterPointsByMap,
   getInitialMap,
   getDisplayMapId,
-  MapTransition,
+  Jump,
 } from '../../utils/routeAnalysis';
 import { useMapIcons } from '../../hooks/useMapIcons';
 import { MapIcon, getIconPrimaryText } from '../../types/mapIcons';
@@ -43,6 +43,8 @@ interface MapContainerProps {
   showIcons?: boolean;
   routeColors?: Record<string, string>;
   routeVisibility?: Record<string, boolean>;
+  // Active tracking - auto-focus on a specific realtime route
+  trackedViewKey?: string | null;
 }
 
 // Palette de couleurs FLASHY pour les routes realtime - bien visibles sur la carte
@@ -72,14 +74,14 @@ function getColorForViewKey(
 }
 
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
-  ({ staticRoutes = {}, staticRouteIds = [], realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, routeColors, routeVisibility = {} }, ref) => {
+  ({ staticRoutes = {}, staticRouteIds = [], realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, routeColors, routeVisibility = {}, trackedViewKey }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
     const routeLayerRef = useRef<L.Polyline | null>(null);
     const glowLayerRef = useRef<L.Polyline | null>(null);
-    const startMarkerRef = useRef<L.CircleMarker | null>(null);
-    const endMarkerRef = useRef<L.CircleMarker | null>(null);
+    const startMarkersRef = useRef<L.CircleMarker[]>([]);
+    const endMarkersRef = useRef<L.CircleMarker[]>([]);
     const transitionMarkersRef = useRef<L.Marker[]>([]);
     const teleportMarkersRef = useRef<L.Marker[]>([]);
     const segmentPolylinesRef = useRef<L.Polyline[]>([]);
@@ -93,7 +95,6 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     const activeMapId = propActiveMapId !== undefined ? propActiveMapId : internalActiveMapId;
     const showIcons = propShowIcons !== undefined ? propShowIcons : internalShowIcons;
     
-    const [transitions, setTransitions] = useState<MapTransition[]>([]);
     const [pendingZoomTarget, setPendingZoomTarget] = useState<{ x: number; z: number } | null>(null);
 
     // Use prop callbacks if provided, otherwise use local state
@@ -139,14 +140,17 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         map.removeLayer(glowLayerRef.current);
         glowLayerRef.current = null;
       }
-      if (startMarkerRef.current) {
-        map.removeLayer(startMarkerRef.current);
-        startMarkerRef.current = null;
-      }
-      if (endMarkerRef.current) {
-        map.removeLayer(endMarkerRef.current);
-        endMarkerRef.current = null;
-      }
+      // Clear start markers
+      startMarkersRef.current.forEach((marker) => {
+        map.removeLayer(marker);
+      });
+      startMarkersRef.current = [];
+
+      // Clear end markers
+      endMarkersRef.current.forEach((marker) => {
+        map.removeLayer(marker);
+      });
+      endMarkersRef.current = [];
 
       // Clear transition markers
       transitionMarkersRef.current.forEach((marker) => {
@@ -349,21 +353,16 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       };
     }, [getActiveConfig]);
 
-    // Detect transitions when static routes change (use first route for transitions)
+    // Set initial map based on first route's first point when routes change
     useEffect(() => {
       if (staticRouteIds.length === 0) {
-        setTransitions([]);
         return;
       }
 
       const firstRoute = staticRoutes[staticRouteIds[0]];
       if (!firstRoute || !firstRoute.points || firstRoute.points.length === 0) {
-        setTransitions([]);
         return;
       }
-
-      const detectedTransitions = detectMapTransitions(firstRoute);
-      setTransitions(detectedTransitions);
 
       // Set initial map based on first route's first point
       const initialMap = getInitialMap(firstRoute);
@@ -451,6 +450,20 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
       const config = getActiveConfig();
 
+      // Calculate all jumps (teleports + transitions) for all visible static routes
+      const allJumps: Jump[] = [];
+      staticRouteIds.forEach((routeId) => {
+        // Skip hidden routes
+        if (routeVisibility[routeId] === false) {
+          return;
+        }
+        const route = staticRoutes[routeId];
+        if (route && route.points && route.points.length > 0) {
+          const routeJumps = detectAllJumps(route);
+          allJumps.push(...routeJumps);
+        }
+      });
+
       // Handle realtime routes (draw them first, then static route on top)
       if (realtimeRoutes && Object.keys(realtimeRoutes).length > 0) {
         const viewKeys = Object.keys(realtimeRoutes);
@@ -496,8 +509,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
       // Handle static routes (can coexist with realtime routes)
       if (staticRouteIds.length === 0) {
-        // No static routes, but add transition markers if any
-        addTransitionMarkers(map, config);
+        // No static routes, no transitions to show
         return;
       }
 
@@ -522,17 +534,10 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         }
 
         // Split route into segments at teleport points (large distance jumps)
+        // Jump markers are handled separately by addJumpMarkers
         const TELEPORT_THRESHOLD = 500;
         const segments: L.LatLng[][] = [];
         let currentSegment: L.LatLng[] = [];
-        
-        // Track teleport points for markers
-        interface TeleportPoint {
-          departureLatLng: L.LatLng;
-          arrivalLatLng: L.LatLng;
-          distance: number;
-        }
-        const teleportPoints: TeleportPoint[] = [];
 
         for (let i = 0; i < filteredPoints.length; i++) {
           const p = filteredPoints[i];
@@ -546,15 +551,6 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             const distance = Math.sqrt(dx * dx + dz * dz);
 
             if (distance > TELEPORT_THRESHOLD) {
-              const prevPixel = gameToPixelForMap(prevP.global_x, prevP.global_z, config);
-              const departureLatLng = pixelToLatLng(prevPixel.x, prevPixel.y, config);
-              
-              teleportPoints.push({
-                departureLatLng,
-                arrivalLatLng: latLng,
-                distance,
-              });
-              
               if (currentSegment.length > 0) {
                 segments.push(currentSegment);
               }
@@ -595,150 +591,75 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           });
         }
 
-        // Add teleport markers (only for first route to avoid clutter)
-        if (routeIndex === 0) {
-          teleportPoints.forEach((tp, index) => {
-            const departureIcon = L.divIcon({
-              className: 'teleport-departure',
-              html: `<div style="
-                width: 36px;
-                height: 36px;
-                background: linear-gradient(135deg, #8b5a3a, #6b4a2a);
-                border: 3px solid #5a4a3a;
-                border-radius: 50%;
-                box-shadow: 0 0 8px rgba(139, 90, 58, 0.4), 0 0 15px rgba(139, 90, 58, 0.2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 18px;
-                color: #d4c4a8;
-                cursor: pointer;
-                z-index: 10000;
-                position: relative;
-              ">↗</div>`,
-              iconSize: [36, 36],
-              iconAnchor: [18, 18],
-            });
+        // Start/end markers for ALL routes
+        // (Jump markers are handled separately by addJumpMarkers)
+        const firstPoint = filteredPoints[0];
+        const lastPoint = filteredPoints[filteredPoints.length - 1];
+        const isGlobalStart =
+          route.points[0].map_id_str === firstPoint.map_id_str &&
+          route.points[0].timestamp_ms === firstPoint.timestamp_ms;
+        const isGlobalEnd =
+          route.points[route.points.length - 1].map_id_str ===
+            lastPoint.map_id_str &&
+          route.points[route.points.length - 1].timestamp_ms ===
+            lastPoint.timestamp_ms;
 
-            const departureMarker = L.marker(tp.departureLatLng, { 
-              icon: departureIcon,
-              pane: 'teleportPane',
-              zIndexOffset: 2000,
-            }).addTo(map);
-            teleportMarkersRef.current.push(departureMarker);
-            
-            departureMarker.on('click', () => {
-              map.panTo(tp.arrivalLatLng);
-            });
-            
-            departureMarker.bindTooltip(`⚡ TP #${index + 1} Départ → Clic pour aller à l'arrivée`, {
-              direction: 'top',
-              offset: [0, -10],
-            });
+        // Detect transitions for this specific route (only transitions, not teleports)
+        const routeJumps = detectAllJumps(route);
+        const routeTransitions = routeJumps.filter(j => j.isTransition);
+        const isStartFromTransition = routeTransitions.some(
+          (t) => t.arrivalMapId === activeMapId
+        );
+        const isEndToTransition = routeTransitions.some(
+          (t) => t.departureMapId === activeMapId
+        );
 
-            const arrivalIcon = L.divIcon({
-              className: 'teleport-arrival',
-              html: `<div style="
-                width: 36px;
-                height: 36px;
-                background: linear-gradient(135deg, #4a4a5a, #3a3a4a);
-                border: 3px solid #5a5a6a;
-                border-radius: 50%;
-                box-shadow: 0 0 8px rgba(74, 74, 90, 0.4), 0 0 15px rgba(74, 74, 90, 0.2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 18px;
-                color: #b4a4a8;
-                cursor: pointer;
-                z-index: 10000;
-                position: relative;
-              ">↙</div>`,
-              iconSize: [36, 36],
-              iconAnchor: [18, 18],
-            });
-
-            const arrivalMarker = L.marker(tp.arrivalLatLng, { 
-              icon: arrivalIcon,
-              pane: 'teleportPane',
-              zIndexOffset: 2000,
-            }).addTo(map);
-            teleportMarkersRef.current.push(arrivalMarker);
-            
-            arrivalMarker.on('click', () => {
-              map.panTo(tp.departureLatLng);
-            });
-            
-            arrivalMarker.bindTooltip(`⚡ TP #${index + 1} Arrivée → Clic pour aller au départ`, {
-              direction: 'top',
-              offset: [0, -10],
-            });
-          });
-
-          // Start/end markers (only for first route)
-          const firstPoint = filteredPoints[0];
-          const lastPoint = filteredPoints[filteredPoints.length - 1];
-          const isGlobalStart =
-            route.points[0].map_id_str === firstPoint.map_id_str &&
-            route.points[0].timestamp_ms === firstPoint.timestamp_ms;
-          const isGlobalEnd =
-            route.points[route.points.length - 1].map_id_str ===
-              lastPoint.map_id_str &&
-            route.points[route.points.length - 1].timestamp_ms ===
-              lastPoint.timestamp_ms;
-
-          const isStartFromTransition = transitions.some(
-            (t) => t.toMapId === activeMapId
+        if (isGlobalStart || !isStartFromTransition) {
+          const startPixel = gameToPixelForMap(
+            firstPoint.global_x,
+            firstPoint.global_z,
+            config
           );
-          const isEndToTransition = transitions.some(
-            (t) => t.fromMapId === activeMapId
+          const startMarker = L.circleMarker(
+            pixelToLatLng(startPixel.x, startPixel.y, config),
+            {
+              radius: 12,
+              fillColor: isGlobalStart ? '#8b7355' : '#6b5b4a',
+              color: '#5a4a3a',
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.9,
+              pane: 'teleportPane',
+            }
+          ).addTo(map);
+          startMarker.bindPopup(
+            `<b>${isGlobalStart ? 'Start' : 'Entry'}</b><br>${config.name}`
           );
+          startMarkersRef.current.push(startMarker);
+        }
 
-          if (isGlobalStart || !isStartFromTransition) {
-            const startPixel = gameToPixelForMap(
-              firstPoint.global_x,
-              firstPoint.global_z,
-              config
-            );
-            startMarkerRef.current = L.circleMarker(
-              pixelToLatLng(startPixel.x, startPixel.y, config),
-              {
-                radius: 12,
-                fillColor: isGlobalStart ? '#8b7355' : '#6b5b4a',
-                color: '#5a4a3a',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.9,
-                pane: 'teleportPane',
-              }
-            ).addTo(map);
-            startMarkerRef.current.bindPopup(
-              `<b>${isGlobalStart ? 'Start' : 'Entry'}</b><br>${config.name}`
-            );
-          }
-
-          if (isGlobalEnd || !isEndToTransition) {
-            const endPixel = gameToPixelForMap(
-              lastPoint.global_x,
-              lastPoint.global_z,
-              config
-            );
-            endMarkerRef.current = L.circleMarker(
-              pixelToLatLng(endPixel.x, endPixel.y, config),
-              {
-                radius: 12,
-                fillColor: isGlobalEnd ? '#5c2e2e' : '#6b5b4a',
-                color: '#4a1f1f',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.9,
-                pane: 'teleportPane',
-              }
-            ).addTo(map);
-            endMarkerRef.current.bindPopup(
-              `<b>${isGlobalEnd ? 'End' : 'Exit'}</b><br>${config.name}`
-            );
-          }
+        if (isGlobalEnd || !isEndToTransition) {
+          const endPixel = gameToPixelForMap(
+            lastPoint.global_x,
+            lastPoint.global_z,
+            config
+          );
+          const endMarker = L.circleMarker(
+            pixelToLatLng(endPixel.x, endPixel.y, config),
+            {
+              radius: 12,
+              fillColor: isGlobalEnd ? '#5c2e2e' : '#6b5b4a',
+              color: '#4a1f1f',
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.9,
+              pane: 'teleportPane',
+            }
+          ).addTo(map);
+          endMarker.bindPopup(
+            `<b>${isGlobalEnd ? 'End' : 'Exit'}</b><br>${config.name}`
+          );
+          endMarkersRef.current.push(endMarker);
         }
 
         console.log(
@@ -746,8 +667,8 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         );
       });
 
-      // Add transition markers
-      addTransitionMarkers(map, config);
+      // Add jump markers (teleports + transitions) for all visible routes
+      addJumpMarkers(map, config, allJumps);
 
       // Apply pending zoom target if any (after everything is drawn)
       if (pendingZoomTarget) {
@@ -760,17 +681,16 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       }
     }, [staticRoutes, staticRouteIds, realtimeRoutes, viewKeyNames, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget, drawRouteWithColor, routeColors, routeVisibility]);
 
-    // Add transition markers for other maps (using same style as teleport markers)
-    const addTransitionMarkers = (map: L.Map, config: MapConfig) => {
-      if (transitions.length === 0) return;
-      
-      // Get first static route for transition markers
-      const firstRoute = staticRouteIds.length > 0 ? staticRoutes[staticRouteIds[0]] : null;
-      if (!firstRoute) return;
+    // Add jump markers (unified: teleports + transitions)
+    // Jumps on current map show both departure and arrival markers
+    // Jumps to other maps show departure marker (click to switch map)
+    // Jumps from other maps show arrival marker (click to go back)
+    const addJumpMarkers = (map: L.Map, config: MapConfig, jumps: Jump[]) => {
+      if (jumps.length === 0) return;
 
-      // Departure icon (brun-rouille - leaving this map)
+      // Departure icon (brun-rouille - leaving)
       const departureIcon = L.divIcon({
-        className: 'map-transition-departure',
+        className: 'jump-departure',
         html: `<div style="
           width: 36px;
           height: 36px;
@@ -791,9 +711,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         iconAnchor: [18, 18],
       });
 
-      // Arrival icon (gris sombre - arriving on this map)
+      // Arrival icon (gris sombre - arriving)
       const arrivalIcon = L.divIcon({
-        className: 'map-transition-arrival',
+        className: 'jump-arrival',
         html: `<div style="
           width: 36px;
           height: 36px;
@@ -814,107 +734,99 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         iconAnchor: [18, 18],
       });
 
-      transitions.forEach((transition, index) => {
-        // Determine which map this transition is visible on
-        const fromPrefix = transition.fromMapId;
-        const toPrefix = transition.toMapId;
+      jumps.forEach((jump, index) => {
+        const { departureCoord, arrivalCoord, departureMapId, arrivalMapId, isTransition, arrivalMapName, departureMapName } = jump;
 
-        if (fromPrefix === activeMapId) {
-          // We're on the "from" map - show DEPARTURE marker (orange ↗)
-          // Find the last valid point BEFORE the transition (transition.pointIndex is the first point on new map)
-          let departurePoint = null;
-          for (let i = transition.pointIndex - 1; i >= 0; i--) {
-            const p = firstRoute.points[i];
-            if (p.global_x !== 0 || p.global_z !== 0) {
-              departurePoint = p;
-              break;
-            }
-          }
+        // Case 1: Same map teleport - show both markers on current map
+        if (!isTransition && departureMapId === activeMapId) {
+          // Departure marker
+          const depPixel = gameToPixelForMap(departureCoord.x, departureCoord.z, config);
+          const depLatLng = pixelToLatLng(depPixel.x, depPixel.y, config);
           
-          if (!departurePoint) {
-            console.warn(`No valid departure point found for transition ${index}`);
-            return;
-          }
-          
-          const pixel = gameToPixelForMap(departurePoint.global_x, departurePoint.global_z, config);
-          const latLng = pixelToLatLng(pixel.x, pixel.y, config);
-
-          const marker = L.marker(latLng, { 
+          const depMarker = L.marker(depLatLng, { 
             icon: departureIcon,
             pane: 'teleportPane',
             zIndexOffset: 2000,
           }).addTo(map);
-
-          // Find arrival point on target map (first valid point after transition)
-          const arrivalPointIndex = firstRoute.points.findIndex(
-            (p) => p.timestamp_ms > transition.point.timestamp_ms && 
-                   p.global_x !== 0 && p.global_z !== 0
-          );
-          const arrivalCoord = arrivalPointIndex !== -1 
-            ? { x: firstRoute.points[arrivalPointIndex].global_x, z: firstRoute.points[arrivalPointIndex].global_z }
-            : undefined;
           
-          console.log(`Transition ${index}: arrivalPointIndex=${arrivalPointIndex}, arrivalCoord=`, arrivalCoord);
-
-          // Tooltip instead of popup for easier clicking
-          marker.bindTooltip(
-            `🌍 Transition #${index + 1} → ${transition.toMapName}<br>Clic pour y aller`,
-            { direction: 'top', offset: [0, -10] }
-          );
-
-          // Store arrivalCoord for click handler (avoid stale closure issues)
-          const targetCoord = arrivalCoord;
-
-          // Click to switch map and zoom to arrival
-          marker.on('click', () => {
-            console.log(`Transition departure clicked, switching to ${toPrefix}, targetCoord=`, targetCoord);
-            switchMap(toPrefix, targetCoord);
+          // Store arrival for click handler
+          const arrPixel = gameToPixelForMap(arrivalCoord.x, arrivalCoord.z, config);
+          const arrLatLng = pixelToLatLng(arrPixel.x, arrPixel.y, config);
+          
+          depMarker.bindTooltip(`⚡ TP #${index + 1} Départ → Clic pour aller à l'arrivée`, {
+            direction: 'top',
+            offset: [0, -10],
           });
-
-          transitionMarkersRef.current.push(marker);
-        } else if (toPrefix === activeMapId) {
-          // We're on the "to" map - show ARRIVAL marker (purple ↙)
-          // Use the NEXT point after transition (first point on this map)
-          const nextPointIndex = firstRoute.points.findIndex(
-            (p) => p.timestamp_ms > transition.point.timestamp_ms && 
-                   p.global_x !== 0 && p.global_z !== 0
-          );
           
-          if (nextPointIndex !== -1) {
-            const arrivalPoint = firstRoute.points[nextPointIndex];
-            const pixel = gameToPixelForMap(arrivalPoint.global_x, arrivalPoint.global_z, config);
-            const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+          depMarker.on('click', () => {
+            map.panTo(arrLatLng);
+          });
+          
+          teleportMarkersRef.current.push(depMarker);
 
-            // Find departure point on source map (last valid point before transition)
-            let departureCoord: { x: number; z: number } | undefined;
-            for (let i = transition.pointIndex - 1; i >= 0; i--) {
-              const p = firstRoute.points[i];
-              if (p.global_x !== 0 || p.global_z !== 0) {
-                departureCoord = { x: p.global_x, z: p.global_z };
-                break;
-              }
-            }
-
-            const marker = L.marker(latLng, { 
-              icon: arrivalIcon,
-              pane: 'teleportPane',
-              zIndexOffset: 2000,
-            }).addTo(map);
-
-            // Tooltip instead of popup for easier clicking
-            marker.bindTooltip(
-              `🌍 Transition #${index + 1} ← ${transition.fromMapName}<br>Clic pour y retourner`,
-              { direction: 'top', offset: [0, -10] }
-            );
-
-            // Click to switch map and zoom to departure
-            marker.on('click', () => {
-              console.log(`Transition arrival clicked, switching to ${fromPrefix}`);
-              switchMap(fromPrefix, departureCoord);
-            });
-
-            transitionMarkersRef.current.push(marker);
-          }
+          // Arrival marker
+          const arrMarker = L.marker(arrLatLng, { 
+            icon: arrivalIcon,
+            pane: 'teleportPane',
+            zIndexOffset: 2000,
+          }).addTo(map);
+          
+          arrMarker.bindTooltip(`⚡ TP #${index + 1} Arrivée → Clic pour aller au départ`, {
+            direction: 'top',
+            offset: [0, -10],
+          });
+          
+          arrMarker.on('click', () => {
+            map.panTo(depLatLng);
+          });
+          
+          teleportMarkersRef.current.push(arrMarker);
+        }
+        
+        // Case 2: Transition - departure is on current map
+        if (isTransition && departureMapId === activeMapId) {
+          const depPixel = gameToPixelForMap(departureCoord.x, departureCoord.z, config);
+          const depLatLng = pixelToLatLng(depPixel.x, depPixel.y, config);
+          
+          const marker = L.marker(depLatLng, { 
+            icon: departureIcon,
+            pane: 'teleportPane',
+            zIndexOffset: 2000,
+          }).addTo(map);
+          
+          marker.bindTooltip(`🌍 Transition #${index + 1} → ${arrivalMapName}<br>Clic pour y aller`, {
+            direction: 'top',
+            offset: [0, -10],
+          });
+          
+          marker.on('click', () => {
+            switchMap(arrivalMapId, arrivalCoord);
+          });
+          
+          transitionMarkersRef.current.push(marker);
+        }
+        
+        // Case 3: Transition - arrival is on current map
+        if (isTransition && arrivalMapId === activeMapId) {
+          const arrPixel = gameToPixelForMap(arrivalCoord.x, arrivalCoord.z, config);
+          const arrLatLng = pixelToLatLng(arrPixel.x, arrPixel.y, config);
+          
+          const marker = L.marker(arrLatLng, { 
+            icon: arrivalIcon,
+            pane: 'teleportPane',
+            zIndexOffset: 2000,
+          }).addTo(map);
+          
+          marker.bindTooltip(`🌍 Transition #${index + 1} ← ${departureMapName}<br>Clic pour y retourner`, {
+            direction: 'top',
+            offset: [0, -10],
+          });
+          
+          marker.on('click', () => {
+            switchMap(departureMapId, departureCoord);
+          });
+          
+          transitionMarkersRef.current.push(marker);
         }
       });
     };
@@ -996,6 +908,56 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       createIconPopup,
       clearIconMarkers,
     ]);
+
+    // Active tracking - auto-focus on the tracked player's position
+    // This effect runs whenever the tracked route gets new points
+    const lastTrackedTimestampRef = useRef<number | null>(null);
+    
+    useEffect(() => {
+      // Skip if no route is being tracked
+      if (!trackedViewKey) {
+        lastTrackedTimestampRef.current = null;
+        return;
+      }
+
+      const map = mapRef.current;
+      if (!map) return;
+
+      // Get the tracked route
+      const trackedRoute = realtimeRoutes?.[trackedViewKey];
+      if (!trackedRoute || !trackedRoute.points || trackedRoute.points.length === 0) {
+        return;
+      }
+
+      // Get the last point
+      const lastPoint = trackedRoute.points[trackedRoute.points.length - 1];
+      
+      // Skip if we've already focused on this exact point
+      if (lastTrackedTimestampRef.current === lastPoint.timestamp_ms) {
+        return;
+      }
+      
+      // Update the last tracked timestamp
+      lastTrackedTimestampRef.current = lastPoint.timestamp_ms;
+
+      // Determine which map the player is on
+      const pointMapId = getDisplayMapId(lastPoint);
+      
+      // If player is on a different map, switch to that map
+      if (pointMapId !== activeMapId) {
+        console.log(`[Active Tracking] Player changed map: ${activeMapId} -> ${pointMapId}`);
+        switchMap(pointMapId, { x: lastPoint.global_x, z: lastPoint.global_z });
+        return; // switchMap will handle the focus via pendingZoomTarget
+      }
+
+      // Player is on the current map - focus on their position
+      const config = getActiveConfig();
+      const pixel = gameToPixelForMap(lastPoint.global_x, lastPoint.global_z, config);
+      const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+      
+      // Smooth pan to the player's position
+      map.setView(latLng, 7, { animate: true, duration: 0.3 });
+    }, [trackedViewKey, realtimeRoutes, activeMapId, getActiveConfig, pixelToLatLng, switchMap]);
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -1184,9 +1146,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
               maxZoom: 7,
             });
           } else {
-            // No points on current map, switch to map with most points
-            const lastPoint = route.points[route.points.length - 1];
-            const pointMapId = getDisplayMapId(lastPoint);
+            // No points on current map, switch to map with first point (start of route)
+            const firstRoutePoint = route.points[0];
+            const pointMapId = getDisplayMapId(firstRoutePoint);
             
             if (pointMapId !== activeMapId) {
               handleMapChange(pointMapId);

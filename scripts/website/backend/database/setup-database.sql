@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS "RoutePoints" (
     "GlobalZ" real NOT NULL,
     "MapId" bigint NOT NULL,
     "MapIdStr" character varying(20),
+    "GlobalMapId" smallint NOT NULL DEFAULT 60,
     "TimestampMs" numeric(20,0) NOT NULL,
     "ReceivedAt" timestamp with time zone NOT NULL,
     CONSTRAINT "PK_RoutePoints" PRIMARY KEY ("Id"),
@@ -116,9 +117,13 @@ CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
     CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
 );
 
--- Mark initial migration as applied
+-- Mark migrations as applied
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
 VALUES ('20260107110346_InitialCreate', '10.0.0')
+ON CONFLICT ("MigrationId") DO NOTHING;
+
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+VALUES ('20260114154006_AddGlobalMapId', '10.0.0')
 ON CONFLICT ("MigrationId") DO NOTHING;
 
 -- =============================================================================

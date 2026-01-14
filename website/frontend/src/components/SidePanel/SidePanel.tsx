@@ -32,6 +32,9 @@ interface SidePanelProps {
   onRemoveViewKey: (viewKey: string) => void;
   onUpdateViewKeyName: (viewKey: string, name: string) => void;
   onFocusPlayer: (viewKey: string) => void;
+  // Active tracking props
+  trackedViewKey?: string | null;
+  onSetTrackedRoute?: (viewKey: string | null) => void;
   // Static routes management props (multiple routes)
   staticRoutes?: Record<string, Route>;
   staticRouteIds?: string[];
@@ -75,7 +78,9 @@ function SidePanel({
   onAddViewKey,
   onRemoveViewKey,
   onUpdateViewKeyName,
-  onFocusPlayer,
+  onFocusPlayer: _onFocusPlayer, // Kept for interface compatibility, replaced by tracking
+  trackedViewKey,
+  onSetTrackedRoute,
   staticRoutes = {},
   staticRouteIds = [],
   staticRouteNames = {},
@@ -576,11 +581,11 @@ function SidePanel({
                     </span>
                   </span>
                   <button
-                    className="realtime-focus-player-btn"
-                    onClick={() => onFocusPlayer(key)}
-                    title="Focus on this player"
+                    className={`realtime-track-btn ${trackedViewKey === key ? 'active' : ''}`}
+                    onClick={() => onSetTrackedRoute?.(trackedViewKey === key ? null : key)}
+                    title={trackedViewKey === key ? "Stop tracking" : "Track this player"}
                   >
-                    Focus
+                    {trackedViewKey === key ? 'Tracking' : 'Track'}
                   </button>
                   <button
                     className="realtime-remove-btn"

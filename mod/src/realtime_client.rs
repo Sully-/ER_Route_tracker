@@ -31,6 +31,8 @@ struct RoutePointRequest {
     map_id: u32,
     #[serde(rename = "mapIdStr")]
     map_id_str: String,
+    #[serde(rename = "globalMapId")]
+    global_map_id: u8,
     #[serde(rename = "timestampMs")]
     timestamp_ms: u64,
 }
@@ -46,6 +48,7 @@ impl From<&RoutePoint> for RoutePointRequest {
             global_z: point.global_z,
             map_id: point.map_id,
             map_id_str: point.map_id_str.clone(),
+            global_map_id: point.global_map_id,
             timestamp_ms: point.timestamp_ms,
         }
     }

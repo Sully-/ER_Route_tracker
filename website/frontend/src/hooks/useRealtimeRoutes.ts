@@ -16,6 +16,7 @@ interface RoutePointBroadcast {
   globalZ: number;
   mapId: number;
   mapIdStr: string | null;
+  globalMapId: number;
   timestampMs: number;
   receivedAt: string;
 }
@@ -31,15 +32,6 @@ interface UseRealtimeRoutesResult {
 
 // Convert broadcast point to route point format
 function broadcastToRoutePoint(broadcast: RoutePointBroadcast): RoutePoint {
-  // Extract global_map_id from mapIdStr (e.g., "m60_44_36_00" -> 60)
-  let globalMapId = 60; // Default to Lands Between
-  if (broadcast.mapIdStr) {
-    const match = broadcast.mapIdStr.match(/^m(\d+)_/);
-    if (match) {
-      globalMapId = parseInt(match[1], 10);
-    }
-  }
-
   return {
     x: broadcast.x,
     y: broadcast.y,
@@ -50,7 +42,7 @@ function broadcastToRoutePoint(broadcast: RoutePointBroadcast): RoutePoint {
     map_id: broadcast.mapId,
     map_id_str: broadcast.mapIdStr || '',
     timestamp_ms: broadcast.timestampMs,
-    global_map_id: globalMapId,
+    global_map_id: broadcast.globalMapId,
   };
 }
 

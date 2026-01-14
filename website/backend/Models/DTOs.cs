@@ -22,6 +22,7 @@ public record RoutePointRequest(
     float GlobalZ,
     uint MapId,
     string? MapIdStr,
+    byte GlobalMapId,
     ulong TimestampMs
 );
 
@@ -37,6 +38,7 @@ public record RoutePointBroadcast(
     float GlobalZ,
     uint MapId,
     string? MapIdStr,
+    byte GlobalMapId,
     ulong TimestampMs,
     DateTime ReceivedAt
 );

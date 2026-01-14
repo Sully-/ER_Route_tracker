@@ -168,3 +168,75 @@ export function getInitialMap(route: Route): string {
   }
   return getDisplayMapId(route.points[0]);
 }
+
+// Unified Jump interface for both teleports (same map) and transitions (different maps)
+export interface Jump {
+  departureCoord: { x: number; z: number };
+  arrivalCoord: { x: number; z: number };
+  departureMapId: string;  // ex: 'm60'
+  arrivalMapId: string;    // ex: 'm60' (TP) or 'm61' (transition)
+  departureMapName: string;
+  arrivalMapName: string;
+  isTransition: boolean;   // true if maps are different
+}
+
+// Detect all jumps (teleports + transitions) in a route
+// A jump is detected when:
+// - global_map_id changes (transition between maps)
+// - OR distance > threshold on the same map (teleport)
+const TELEPORT_THRESHOLD = 500;
+
+export function detectAllJumps(route: Route): Jump[] {
+  if (!route.points || route.points.length < 2) {
+    return [];
+  }
+
+  const jumps: Jump[] = [];
+  
+  // Track the last valid point to handle (0,0,0) points during transitions
+  let lastValidPoint: RoutePoint | null = null;
+  
+  for (let i = 0; i < route.points.length; i++) {
+    const currPoint = route.points[i];
+    
+    // Skip invalid points (0, 0, 0) but keep tracking
+    if (currPoint.global_x === 0 && currPoint.global_z === 0) {
+      continue;
+    }
+    
+    // If we have a previous valid point, check for jump
+    if (lastValidPoint) {
+      const prevMapId = getDisplayMapId(lastValidPoint);
+      const currMapId = getDisplayMapId(currPoint);
+      
+      const isTransition = prevMapId !== currMapId;
+      
+      // Calculate distance for same-map teleport detection
+      const dx = currPoint.global_x - lastValidPoint.global_x;
+      const dz = currPoint.global_z - lastValidPoint.global_z;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+      
+      const isTeleport = !isTransition && distance > TELEPORT_THRESHOLD;
+      
+      if (isTransition || isTeleport) {
+        const fromConfig = MAP_CONFIGS[prevMapId] || MAP_CONFIGS[DEFAULT_MAP_ID];
+        const toConfig = MAP_CONFIGS[currMapId] || MAP_CONFIGS[DEFAULT_MAP_ID];
+        
+        jumps.push({
+          departureCoord: { x: lastValidPoint.global_x, z: lastValidPoint.global_z },
+          arrivalCoord: { x: currPoint.global_x, z: currPoint.global_z },
+          departureMapId: prevMapId,
+          arrivalMapId: currMapId,
+          departureMapName: fromConfig.name,
+          arrivalMapName: toConfig.name,
+          isTransition,
+        });
+      }
+    }
+    
+    // Update last valid point
+    lastValidPoint = currPoint;
+  }
+
+  return jumps;
+}

@@ -60,6 +60,11 @@ public class RoutePoint
     public string? MapIdStr { get; set; }
     
     /// <summary>
+    /// Global map area (60=Lands Between, 61=Shadow Realm, 62=Underground)
+    /// </summary>
+    public byte GlobalMapId { get; set; }
+    
+    /// <summary>
     /// Timestamp in milliseconds from start of recording
     /// </summary>
     public ulong TimestampMs { get; set; }

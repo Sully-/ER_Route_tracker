@@ -97,6 +97,7 @@ public class RoutePointsController : ControllerBase
                 p.X, p.Y, p.Z,
                 p.GlobalX, p.GlobalY, p.GlobalZ,
                 p.MapId, p.MapIdStr,
+                p.GlobalMapId,
                 p.TimestampMs, p.ReceivedAt
             ))
             .ToList();
