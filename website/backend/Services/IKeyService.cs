@@ -5,9 +5,10 @@ namespace RouteTracker.Services;
 public interface IKeyService
 {
     /// <summary>
-    /// Generate a new push/view key pair
+    /// Generate a new push/view key pair.
+    /// If userId is provided, the key pair is linked to the user (permanent).
     /// </summary>
-    Task<KeyPair> GenerateKeyPairAsync();
+    Task<KeyPair> GenerateKeyPairAsync(Guid? userId = null);
     
     /// <summary>
     /// Validate a push key and return the associated key pair if valid
@@ -30,8 +31,38 @@ public interface IKeyService
     Task UpdateLastActivityAsync(string pushKey);
     
     /// <summary>
-    /// Delete expired keys (inactive for more than 24h)
+    /// Delete expired keys (inactive for more than 24h).
+    /// Only deletes anonymous keys (UserId == null).
     /// </summary>
     Task<int> DeleteExpiredKeysAsync(int expirationHours = 24);
+    
+    /// <summary>
+    /// Get all key pairs belonging to a user
+    /// </summary>
+    Task<List<KeyPair>> GetUserKeyPairsAsync(Guid userId);
+    
+    /// <summary>
+    /// Add an existing key pair to a user's account.
+    /// Requires both PushKey and ViewKey to match for verification.
+    /// </summary>
+    Task<AddKeyPairResult> AddExistingKeyPairToUserAsync(Guid userId, string pushKey, string viewKey);
+    
+    /// <summary>
+    /// Remove a key pair from a user's account (makes it anonymous again).
+    /// </summary>
+    Task<bool> RemoveKeyPairFromUserAsync(Guid userId, Guid keyPairId);
+}
+
+/// <summary>
+/// Result of adding a key pair to a user
+/// </summary>
+public class AddKeyPairResult
+{
+    public bool Success { get; set; }
+    public string? ErrorMessage { get; set; }
+    public KeyPair? KeyPair { get; set; }
+    
+    public static AddKeyPairResult Succeeded(KeyPair keyPair) => new() { Success = true, KeyPair = keyPair };
+    public static AddKeyPairResult Failed(string message) => new() { Success = false, ErrorMessage = message };
 }
 

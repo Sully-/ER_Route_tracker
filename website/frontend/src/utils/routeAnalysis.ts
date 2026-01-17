@@ -178,6 +178,7 @@ export interface Jump {
   departureMapName: string;
   arrivalMapName: string;
   isTransition: boolean;   // true if maps are different
+  routeId?: string;        // Optional: ID of the route this jump belongs to
 }
 
 // Detect all jumps (teleports + transitions) in a route
@@ -186,7 +187,7 @@ export interface Jump {
 // - OR distance > threshold on the same map (teleport)
 const TELEPORT_THRESHOLD = 500;
 
-export function detectAllJumps(route: Route): Jump[] {
+export function detectAllJumps(route: Route, routeId?: string): Jump[] {
   if (!route.points || route.points.length < 2) {
     return [];
   }
@@ -230,6 +231,7 @@ export function detectAllJumps(route: Route): Jump[] {
           departureMapName: fromConfig.name,
           arrivalMapName: toConfig.name,
           isTransition,
+          routeId,
         });
       }
     }

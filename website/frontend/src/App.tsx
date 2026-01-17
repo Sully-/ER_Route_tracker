@@ -4,6 +4,7 @@ import RouteInfo from './components/RouteInfo/RouteInfo';
 import SidePanel from './components/SidePanel/SidePanel';
 import { useStaticRoutes } from './hooks/useStaticRoutes';
 import { useRealtimeRoutes } from './hooks/useRealtimeRoutes';
+import { useAuth } from './hooks/useAuth';
 import { DEFAULT_MAP_ID } from './utils/calibration';
 import './App.css';
 
@@ -116,6 +117,18 @@ function updateUrlWithViewKeys(
 function App() {
   const mapRef = useRef<MapContainerHandle>(null);
   
+  // Authentication state
+  const {
+    user,
+    isLoading: isAuthLoading,
+    savedKeys,
+    login,
+    logout,
+    generateKeys,
+    addKeyPair,
+    removeKeyPair,
+  } = useAuth();
+  
   // Parse viewkeys from URL only once on mount
   const initialViewKeysWithNamesRef = useRef<ViewKeyWithName[]>(parseViewKeysFromUrl());
   const initialViewKeysWithNames = initialViewKeysWithNamesRef.current;
@@ -167,6 +180,10 @@ function App() {
   // Active tracking state - which realtime route is being actively tracked (auto-focus)
   // Only one route can be tracked at a time
   const [trackedViewKey, setTrackedViewKey] = useState<string | null>(null);
+
+  // Selected route state - which route is currently selected (highlighted with glow effect)
+  // Can be a static routeId or a realtime viewKey
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   
   // Static routes state (multiple routes)
   const {
@@ -243,6 +260,25 @@ function App() {
     }
   }, [viewKeys, trackedViewKey]);
 
+  // Auto-deselect if the selected route is removed
+  useEffect(() => {
+    if (!selectedRouteId) return;
+    
+    // Check if it's a static route that was removed
+    const isStaticRoute = selectedRouteId.startsWith('static-');
+    if (isStaticRoute && !staticRouteIds.includes(selectedRouteId)) {
+      console.log(`[Selection] Selected static route ${selectedRouteId} was removed, deselecting`);
+      setSelectedRouteId(null);
+      return;
+    }
+    
+    // Check if it's a realtime route that was removed
+    if (!isStaticRoute && !viewKeys.includes(selectedRouteId)) {
+      console.log(`[Selection] Selected realtime route ${selectedRouteId} was removed, deselecting`);
+      setSelectedRouteId(null);
+    }
+  }, [selectedRouteId, staticRouteIds, viewKeys]);
+
   const handleFocusPlayer = (viewKey: string) => {
     mapRef.current?.focusPlayer(viewKey);
   };
@@ -288,6 +324,11 @@ function App() {
     setTrackedViewKey(viewKey);
   }, []);
 
+  // Handler for selecting/deselecting a route (toggle behavior)
+  const handleSelectRoute = useCallback((routeId: string | null) => {
+    setSelectedRouteId(prev => prev === routeId ? null : routeId);
+  }, []);
+
   return (
     <div className="app">
       {/* Side Panel - always visible with map selector, static routes and realtime routes */}
@@ -318,6 +359,18 @@ function App() {
         onUpdateRouteColor={handleUpdateRouteColor}
         routeVisibility={routeVisibility}
         onToggleRouteVisibility={handleToggleRouteVisibility}
+        // Route selection props
+        selectedRouteId={selectedRouteId}
+        onSelectRoute={handleSelectRoute}
+        // Authentication props
+        user={user}
+        isAuthLoading={isAuthLoading}
+        savedKeys={savedKeys}
+        onLogin={login}
+        onLogout={logout}
+        onGenerateKeys={generateKeys}
+        onAddKeyPair={addKeyPair}
+        onRemoveSavedKey={removeKeyPair}
       />
       
       {/* Map Container - displays both static and realtime routes */}
@@ -325,6 +378,7 @@ function App() {
         ref={mapRef}
         staticRoutes={staticRoutes}
         staticRouteIds={staticRouteIds}
+        staticRouteNames={staticRouteNames}
         realtimeRoutes={realtimeRoutes}
         viewKeyNames={viewKeyNames}
         activeMapId={activeMapId}
@@ -333,6 +387,8 @@ function App() {
         routeColors={routeColors}
         routeVisibility={routeVisibility}
         trackedViewKey={trackedViewKey}
+        selectedRouteId={selectedRouteId}
+        onSelectRoute={handleSelectRoute}
       />
       
       {/* Route Info - shows first static route info when available */}

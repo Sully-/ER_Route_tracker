@@ -36,6 +36,7 @@ export interface MapContainerHandle {
 interface MapContainerProps {
   staticRoutes?: Record<string, Route>;
   staticRouteIds?: string[];
+  staticRouteNames?: Record<string, string>;
   realtimeRoutes?: Record<string, Route>;
   viewKeyNames?: Record<string, string>;
   activeMapId?: string;
@@ -45,6 +46,9 @@ interface MapContainerProps {
   routeVisibility?: Record<string, boolean>;
   // Active tracking - auto-focus on a specific realtime route
   trackedViewKey?: string | null;
+  // Route selection - which route is currently selected (highlighted)
+  selectedRouteId?: string | null;
+  onSelectRoute?: (routeId: string | null) => void;
 }
 
 // Palette de couleurs FLASHY pour les routes realtime - bien visibles sur la carte
@@ -74,7 +78,7 @@ function getColorForViewKey(
 }
 
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
-  ({ staticRoutes = {}, staticRouteIds = [], realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, routeColors, routeVisibility = {}, trackedViewKey }, ref) => {
+  ({ staticRoutes = {}, staticRouteIds = [], staticRouteNames = {}, realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, routeColors, routeVisibility = {}, trackedViewKey, selectedRouteId, onSelectRoute }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
@@ -319,6 +323,13 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       map.createPane('teleportPane');
       map.getPane('teleportPane')!.style.zIndex = '750'; // Above default markers, below popups
 
+      // Panes for selected route (above everything else)
+      map.createPane('selectedRoutePane');
+      map.getPane('selectedRoutePane')!.style.zIndex = '800'; // Selected route polylines
+      
+      map.createPane('selectedMarkersPane');
+      map.getPane('selectedMarkersPane')!.style.zIndex = '850'; // Selected route markers
+
       const southWest = map.unproject([0, config.paddedSize], config.maxZoom);
       const northEast = map.unproject([config.paddedSize, 0], config.maxZoom);
       const tileBounds = new L.LatLngBounds(southWest, northEast);
@@ -376,7 +387,10 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       routeToDraw: Route,
       color: string,
       map: L.Map,
-      config: MapConfig
+      config: MapConfig,
+      isSelected: boolean = false,
+      routeKey?: string,
+      selectHandler?: (key: string) => void
     ) => {
       // Filter points for the active map and remove invalid points (0, 0, 0)
       const filteredPoints = filterPointsByMap(routeToDraw, activeMapId).filter(
@@ -425,11 +439,22 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           // Route principale - opaque
           const main = L.polyline(segment, {
             color: color,
-            weight: 5,
+            weight: isSelected ? 6 : 5,
             opacity: 1,
             lineJoin: 'round',
             lineCap: 'round',
+            pane: isSelected ? 'selectedRoutePane' : undefined,
+            className: isSelected ? 'route-selected' : undefined,
           }).addTo(map);
+          
+          // Add click handler if provided
+          if (routeKey && selectHandler) {
+            main.on('click', (e) => {
+              L.DomEvent.stopPropagation(e);
+              selectHandler(routeKey);
+            });
+          }
+          
           segmentPolylinesRef.current.push(main);
         }
       });
@@ -459,7 +484,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         }
         const route = staticRoutes[routeId];
         if (route && route.points && route.points.length > 0) {
-          const routeJumps = detectAllJumps(route);
+          const routeJumps = detectAllJumps(route, routeId);
           allJumps.push(...routeJumps);
         }
       });
@@ -475,7 +500,16 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           const rt = realtimeRoutes[viewKey];
           if (rt && rt.points && rt.points.length >= 2) {
             const color = getColorForViewKey(viewKey, viewKeys, routeColors);
-            const lastPoint = drawRouteWithColor(rt, color, map, config);
+            const isSelected = viewKey === selectedRouteId;
+            const lastPoint = drawRouteWithColor(
+              rt, 
+              color, 
+              map, 
+              config, 
+              isSelected, 
+              viewKey, 
+              onSelectRoute ? (key) => onSelectRoute(key) : undefined
+            );
             
             // Add a marker at the current position (last point)
             if (lastPoint) {
@@ -483,14 +517,14 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
               const latLng = pixelToLatLng(pixel.x, pixel.y, config);
               
               const playerMarker = L.circleMarker(latLng, {
-                radius: 12,
+                radius: isSelected ? 14 : 12,
                 fillColor: color,
-                color: '#ffffff',
-                weight: 3,
+                color: isSelected ? color : '#ffffff',
+                weight: isSelected ? 4 : 3,
                 opacity: 1,
                 fillOpacity: 1,
-                pane: 'teleportPane',
-                className: 'realtime-player-marker', // Effet sonar CSS
+                pane: isSelected ? 'selectedMarkersPane' : 'teleportPane',
+                className: isSelected ? 'realtime-player-marker marker-selected' : 'realtime-player-marker',
               }).addTo(map);
               
               // Use custom name if available, otherwise use truncated viewKey
@@ -500,6 +534,13 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
                 offset: [0, -10],
                 permanent: true,
               });
+              
+              // Click to select route
+              playerMarker.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                onSelectRoute?.(viewKey);
+              });
+              
               teleportMarkersRef.current.push(playerMarker as unknown as L.Marker);
             }
           }
@@ -568,17 +609,27 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
         // Get color for this route (use routeId from routeColors, or default based on index)
         const routeColor = routeColors?.[routeId] || ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
+        const isSelected = routeId === selectedRouteId;
         
         // Draw each segment as separate polylines
         segments.forEach((segment) => {
           if (segment.length >= 2) {
             const main = L.polyline(segment, {
               color: routeColor,
-              weight: 5,
+              weight: isSelected ? 6 : 5,
               opacity: 1,
               lineJoin: 'round',
               lineCap: 'round',
+              pane: isSelected ? 'selectedRoutePane' : undefined,
+              className: isSelected ? 'route-selected' : undefined,
             }).addTo(map);
+            
+            // Add click handler to select/deselect the route
+            main.on('click', (e) => {
+              L.DomEvent.stopPropagation(e);
+              onSelectRoute?.(routeId);
+            });
+            
             segmentPolylinesRef.current.push(main);
           }
         });
@@ -605,7 +656,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             lastPoint.timestamp_ms;
 
         // Detect transitions for this specific route (only transitions, not teleports)
-        const routeJumps = detectAllJumps(route);
+        const routeJumps = detectAllJumps(route, routeId);
         const routeTransitions = routeJumps.filter(j => j.isTransition);
         const isStartFromTransition = routeTransitions.some(
           (t) => t.arrivalMapId === activeMapId
@@ -613,6 +664,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         const isEndToTransition = routeTransitions.some(
           (t) => t.departureMapId === activeMapId
         );
+
+        // Get display name for this route (custom name or fallback to route ID prefix)
+        const routeDisplayName = staticRouteNames[routeId]?.trim() || routeId.substring(0, 12);
 
         if (isGlobalStart || !isStartFromTransition) {
           const startPixel = gameToPixelForMap(
@@ -623,18 +677,28 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           const startMarker = L.circleMarker(
             pixelToLatLng(startPixel.x, startPixel.y, config),
             {
-              radius: 12,
+              radius: isSelected ? 14 : 12,
               fillColor: isGlobalStart ? '#8b7355' : '#6b5b4a',
-              color: '#5a4a3a',
-              weight: 2,
+              color: isSelected ? routeColor : '#5a4a3a',
+              weight: isSelected ? 3 : 2,
               opacity: 1,
               fillOpacity: 0.9,
-              pane: 'teleportPane',
+              pane: isSelected ? 'selectedMarkersPane' : 'teleportPane',
+              className: isSelected ? 'marker-selected' : undefined,
             }
           ).addTo(map);
-          startMarker.bindPopup(
-            `<b>${isGlobalStart ? 'Start' : 'Entry'}</b><br>${config.name}`
+          startMarker.bindTooltip(
+            `${isGlobalStart ? 'Start' : 'Entry'}: ${routeDisplayName}`,
+            { direction: 'top', offset: [0, -10] }
           );
+          startMarker.bindPopup(
+            `<b>${isGlobalStart ? 'Start' : 'Entry'}</b><br>${routeDisplayName}<br><small>${config.name}</small>`
+          );
+          // Click to select route
+          startMarker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            onSelectRoute?.(routeId);
+          });
           startMarkersRef.current.push(startMarker);
         }
 
@@ -647,18 +711,28 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           const endMarker = L.circleMarker(
             pixelToLatLng(endPixel.x, endPixel.y, config),
             {
-              radius: 12,
+              radius: isSelected ? 14 : 12,
               fillColor: isGlobalEnd ? '#5c2e2e' : '#6b5b4a',
-              color: '#4a1f1f',
-              weight: 2,
+              color: isSelected ? routeColor : '#4a1f1f',
+              weight: isSelected ? 3 : 2,
               opacity: 1,
               fillOpacity: 0.9,
-              pane: 'teleportPane',
+              pane: isSelected ? 'selectedMarkersPane' : 'teleportPane',
+              className: isSelected ? 'marker-selected' : undefined,
             }
           ).addTo(map);
-          endMarker.bindPopup(
-            `<b>${isGlobalEnd ? 'End' : 'Exit'}</b><br>${config.name}`
+          endMarker.bindTooltip(
+            `${isGlobalEnd ? 'End' : 'Exit'}: ${routeDisplayName}`,
+            { direction: 'top', offset: [0, -10] }
           );
+          endMarker.bindPopup(
+            `<b>${isGlobalEnd ? 'End' : 'Exit'}</b><br>${routeDisplayName}<br><small>${config.name}</small>`
+          );
+          // Click to select route
+          endMarker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            onSelectRoute?.(routeId);
+          });
           endMarkersRef.current.push(endMarker);
         }
 
@@ -679,7 +753,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
         }, 50);
         setPendingZoomTarget(null);
       }
-    }, [staticRoutes, staticRouteIds, realtimeRoutes, viewKeyNames, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget, drawRouteWithColor, routeColors, routeVisibility]);
+    }, [staticRoutes, staticRouteIds, staticRouteNames, realtimeRoutes, viewKeyNames, activeMapId, getActiveConfig, clearRouteLayers, pixelToLatLng, pendingZoomTarget, drawRouteWithColor, routeColors, routeVisibility, selectedRouteId, onSelectRoute]);
 
     // Add jump markers (unified: teleports + transitions)
     // Jumps on current map show both departure and arrival markers
@@ -688,54 +762,61 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     const addJumpMarkers = (map: L.Map, config: MapConfig, jumps: Jump[]) => {
       if (jumps.length === 0) return;
 
-      // Departure icon (brun-rouille - leaving)
-      const departureIcon = L.divIcon({
-        className: 'jump-departure',
+      // Create icon with optional glow effect for selected routes
+      const createDepartureIcon = (isSelected: boolean) => L.divIcon({
+        className: `jump-departure ${isSelected ? 'jump-marker-selected' : ''}`,
         html: `<div style="
-          width: 36px;
-          height: 36px;
+          width: ${isSelected ? '40px' : '36px'};
+          height: ${isSelected ? '40px' : '36px'};
           background: linear-gradient(135deg, #8b5a3a, #6b4a2a);
-          border: 3px solid #5a4a3a;
+          border: ${isSelected ? '4px' : '3px'} solid ${isSelected ? '#d4c4a8' : '#5a4a3a'};
           border-radius: 50%;
-          box-shadow: 0 0 8px rgba(139, 90, 58, 0.4), 0 0 15px rgba(139, 90, 58, 0.2);
+          box-shadow: ${isSelected 
+            ? '0 0 12px rgba(212, 196, 168, 0.8), 0 0 20px rgba(139, 90, 58, 0.6), 0 0 30px rgba(139, 90, 58, 0.4)' 
+            : '0 0 8px rgba(139, 90, 58, 0.4), 0 0 15px rgba(139, 90, 58, 0.2)'};
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 18px;
+          font-size: ${isSelected ? '20px' : '18px'};
           color: #d4c4a8;
           cursor: pointer;
           z-index: 10000;
           position: relative;
+          ${isSelected ? 'animation: jumpGlow 2s ease-in-out infinite;' : ''}
         ">↗</div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
+        iconSize: [isSelected ? 40 : 36, isSelected ? 40 : 36],
+        iconAnchor: [isSelected ? 20 : 18, isSelected ? 20 : 18],
       });
 
-      // Arrival icon (gris sombre - arriving)
-      const arrivalIcon = L.divIcon({
-        className: 'jump-arrival',
+      const createArrivalIcon = (isSelected: boolean) => L.divIcon({
+        className: `jump-arrival ${isSelected ? 'jump-marker-selected' : ''}`,
         html: `<div style="
-          width: 36px;
-          height: 36px;
+          width: ${isSelected ? '40px' : '36px'};
+          height: ${isSelected ? '40px' : '36px'};
           background: linear-gradient(135deg, #4a4a5a, #3a3a4a);
-          border: 3px solid #5a5a6a;
+          border: ${isSelected ? '4px' : '3px'} solid ${isSelected ? '#d4c4a8' : '#5a5a6a'};
           border-radius: 50%;
-          box-shadow: 0 0 8px rgba(74, 74, 90, 0.4), 0 0 15px rgba(74, 74, 90, 0.2);
+          box-shadow: ${isSelected 
+            ? '0 0 12px rgba(212, 196, 168, 0.8), 0 0 20px rgba(74, 74, 90, 0.6), 0 0 30px rgba(74, 74, 90, 0.4)' 
+            : '0 0 8px rgba(74, 74, 90, 0.4), 0 0 15px rgba(74, 74, 90, 0.2)'};
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 18px;
+          font-size: ${isSelected ? '20px' : '18px'};
           color: #b4a4a8;
           cursor: pointer;
           z-index: 10000;
           position: relative;
+          ${isSelected ? 'animation: jumpGlow 2s ease-in-out infinite;' : ''}
         ">↙</div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
+        iconSize: [isSelected ? 40 : 36, isSelected ? 40 : 36],
+        iconAnchor: [isSelected ? 20 : 18, isSelected ? 20 : 18],
       });
 
       jumps.forEach((jump, index) => {
-        const { departureCoord, arrivalCoord, departureMapId, arrivalMapId, isTransition, arrivalMapName, departureMapName } = jump;
+        const { departureCoord, arrivalCoord, departureMapId, arrivalMapId, isTransition, arrivalMapName, departureMapName, routeId } = jump;
+        const isSelected = routeId === selectedRouteId;
+        const markerPane = isSelected ? 'selectedMarkersPane' : 'teleportPane';
 
         // Case 1: Same map teleport - show both markers on current map
         if (!isTransition && departureMapId === activeMapId) {
@@ -744,9 +825,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           const depLatLng = pixelToLatLng(depPixel.x, depPixel.y, config);
           
           const depMarker = L.marker(depLatLng, { 
-            icon: departureIcon,
-            pane: 'teleportPane',
-            zIndexOffset: 2000,
+            icon: createDepartureIcon(isSelected),
+            pane: markerPane,
+            zIndexOffset: isSelected ? 3000 : 2000,
           }).addTo(map);
           
           // Store arrival for click handler
@@ -758,7 +839,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             offset: [0, -10],
           });
           
-          depMarker.on('click', () => {
+          depMarker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            if (routeId) onSelectRoute?.(routeId);
             map.panTo(arrLatLng);
           });
           
@@ -766,9 +849,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
           // Arrival marker
           const arrMarker = L.marker(arrLatLng, { 
-            icon: arrivalIcon,
-            pane: 'teleportPane',
-            zIndexOffset: 2000,
+            icon: createArrivalIcon(isSelected),
+            pane: markerPane,
+            zIndexOffset: isSelected ? 3000 : 2000,
           }).addTo(map);
           
           arrMarker.bindTooltip(`⚡ TP #${index + 1} Arrival → Click to go to departure`, {
@@ -776,7 +859,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             offset: [0, -10],
           });
           
-          arrMarker.on('click', () => {
+          arrMarker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            if (routeId) onSelectRoute?.(routeId);
             map.panTo(depLatLng);
           });
           
@@ -789,9 +874,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           const depLatLng = pixelToLatLng(depPixel.x, depPixel.y, config);
           
           const marker = L.marker(depLatLng, { 
-            icon: departureIcon,
-            pane: 'teleportPane',
-            zIndexOffset: 2000,
+            icon: createDepartureIcon(isSelected),
+            pane: markerPane,
+            zIndexOffset: isSelected ? 3000 : 2000,
           }).addTo(map);
           
           marker.bindTooltip(`🌍 Transition #${index + 1} → ${arrivalMapName}<br>Click to go there`, {
@@ -799,7 +884,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             offset: [0, -10],
           });
           
-          marker.on('click', () => {
+          marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            if (routeId) onSelectRoute?.(routeId);
             switchMap(arrivalMapId, arrivalCoord);
           });
           
@@ -812,9 +899,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           const arrLatLng = pixelToLatLng(arrPixel.x, arrPixel.y, config);
           
           const marker = L.marker(arrLatLng, { 
-            icon: arrivalIcon,
-            pane: 'teleportPane',
-            zIndexOffset: 2000,
+            icon: createArrivalIcon(isSelected),
+            pane: markerPane,
+            zIndexOffset: isSelected ? 3000 : 2000,
           }).addTo(map);
           
           marker.bindTooltip(`🌍 Transition #${index + 1} ← ${departureMapName}<br>Click to go back`, {
@@ -822,7 +909,9 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
             offset: [0, -10],
           });
           
-          marker.on('click', () => {
+          marker.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            if (routeId) onSelectRoute?.(routeId);
             switchMap(departureMapId, departureCoord);
           });
           

@@ -142,3 +142,57 @@
   color: #8b7355;
 }
 
+/* ============================================ */
+/* Selected Route Glow Effect                  */
+/* ============================================ */
+
+/* Glow effect for selected route polylines */
+.route-selected {
+  filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 10px currentColor);
+}
+
+/* Glow animation for selected routes */
+@keyframes routeGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 10px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 10px currentColor) drop-shadow(0 0 16px currentColor);
+  }
+}
+
+.route-selected path {
+  animation: routeGlow 2s ease-in-out infinite;
+}
+
+/* Selected marker glow effect */
+.marker-selected {
+  filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 12px currentColor);
+}
+
+@keyframes markerGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px currentColor) drop-shadow(0 0 12px currentColor);
+  }
+  50% {
+    filter: drop-shadow(0 0 12px currentColor) drop-shadow(0 0 18px currentColor);
+  }
+}
+
+.marker-selected path {
+  animation: markerGlow 2s ease-in-out infinite;
+}
+
+/* Jump marker (TP/Transition) glow animation for selected routes */
+@keyframes jumpGlow {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(212, 196, 168, 0.8), 0 0 20px rgba(139, 90, 58, 0.6), 0 0 30px rgba(139, 90, 58, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(212, 196, 168, 1), 0 0 28px rgba(139, 90, 58, 0.8), 0 0 40px rgba(139, 90, 58, 0.6);
+  }
+}
+
+.jump-marker-selected {
+  z-index: 10001 !important;
+}

@@ -57,8 +57,30 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO route_tracker;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO route_tracker;
 
 -- -----------------------------------------------------------------------------
+-- Table: Users
+-- Stores authenticated users (OAuth providers: Discord, Twitch, Google, Microsoft, Steam)
+-- -----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS "Users" (
+    "Id" uuid NOT NULL,
+    "Provider" character varying(50) NOT NULL,
+    "ProviderId" character varying(255) NOT NULL,
+    "Username" character varying(255) NOT NULL,
+    "Email" character varying(255),
+    "AvatarUrl" character varying(500),
+    "CreatedAt" timestamp with time zone NOT NULL,
+    "LastLoginAt" timestamp with time zone NOT NULL,
+    CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
+);
+
+-- Indexes for Users
+CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Provider_ProviderId" ON "Users" ("Provider", "ProviderId");
+CREATE INDEX IF NOT EXISTS "IX_Users_LastLoginAt" ON "Users" ("LastLoginAt");
+
+-- -----------------------------------------------------------------------------
 -- Table: KeyPairs
 -- Stores push/view key pairs for real-time tracking
+-- UserId is optional: null = anonymous (24h expiration), non-null = permanent
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS "KeyPairs" (
@@ -68,8 +90,11 @@ CREATE TABLE IF NOT EXISTS "KeyPairs" (
     "CreatedAt" timestamp with time zone NOT NULL,
     "LastActivityAt" timestamp with time zone NOT NULL,
     "IsActive" boolean NOT NULL DEFAULT true,
+    "UserId" uuid,
     CONSTRAINT "PK_KeyPairs" PRIMARY KEY ("Id"),
-    CONSTRAINT "AK_KeyPairs_PushKey" UNIQUE ("PushKey")
+    CONSTRAINT "AK_KeyPairs_PushKey" UNIQUE ("PushKey"),
+    CONSTRAINT "FK_KeyPairs_Users_UserId" FOREIGN KEY ("UserId")
+        REFERENCES "Users" ("Id") ON DELETE SET NULL
 );
 
 -- Indexes for KeyPairs
@@ -77,6 +102,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "IX_KeyPairs_PushKey" ON "KeyPairs" ("PushKey"
 CREATE UNIQUE INDEX IF NOT EXISTS "IX_KeyPairs_ViewKey" ON "KeyPairs" ("ViewKey");
 CREATE INDEX IF NOT EXISTS "IX_KeyPairs_IsActive" ON "KeyPairs" ("IsActive");
 CREATE INDEX IF NOT EXISTS "IX_KeyPairs_LastActivityAt" ON "KeyPairs" ("LastActivityAt");
+CREATE INDEX IF NOT EXISTS "IX_KeyPairs_UserId" ON "KeyPairs" ("UserId");
 
 -- -----------------------------------------------------------------------------
 -- Table: RoutePoints
@@ -124,6 +150,10 @@ ON CONFLICT ("MigrationId") DO NOTHING;
 
 INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
 VALUES ('20260114154006_AddGlobalMapId', '10.0.0')
+ON CONFLICT ("MigrationId") DO NOTHING;
+
+INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+VALUES ('20260116184430_AddUserAuthentication', '10.0.0')
 ON CONFLICT ("MigrationId") DO NOTHING;
 
 -- =============================================================================

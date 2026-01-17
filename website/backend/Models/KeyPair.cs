@@ -42,6 +42,18 @@ public class KeyPair
     public bool IsActive { get; set; } = true;
     
     /// <summary>
+    /// Optional user ID for authenticated users.
+    /// If null, this is an anonymous key pair subject to 24h expiration.
+    /// </summary>
+    public Guid? UserId { get; set; }
+    
+    /// <summary>
+    /// Navigation property to the owning user (optional)
+    /// </summary>
+    [ForeignKey(nameof(UserId))]
+    public User? User { get; set; }
+    
+    /// <summary>
     /// Navigation property for associated route points
     /// </summary>
     public ICollection<RoutePoint> RoutePoints { get; set; } = new List<RoutePoint>();

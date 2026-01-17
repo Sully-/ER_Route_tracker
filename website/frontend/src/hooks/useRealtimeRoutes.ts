@@ -3,7 +3,7 @@ import * as signalR from '@microsoft/signalr';
 import { Route, RoutePoint } from '../types/route';
 
 // Backend URL - configurable via environment variable
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5192';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://localhost:7169';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 

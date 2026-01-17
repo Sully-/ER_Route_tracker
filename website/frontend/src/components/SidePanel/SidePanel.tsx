@@ -4,16 +4,10 @@ import { MAP_CONFIGS } from '../../utils/calibration';
 import { detectMapTransitions } from '../../utils/routeAnalysis';
 import { useMapIcons } from '../../hooks/useMapIcons';
 import { Route } from '../../types/route';
+import { User, KeyPairInfo, OAuthProvider, OAUTH_PROVIDERS, PROVIDER_ICONS } from '../../types/auth';
 import ColorPicker from '../ColorPicker/ColorPicker';
+import AddKeysForm from '../Auth/AddKeysForm';
 import './SidePanel.css';
-
-// Backend URL - configurable via environment variable
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5192';
-
-interface KeyPairResponse {
-  pushKey: string;
-  viewKey: string;
-}
 
 interface GeneratedKeys {
   pushKey: string;
@@ -49,6 +43,18 @@ interface SidePanelProps {
   // Route visibility props
   routeVisibility?: Record<string, boolean>;
   onToggleRouteVisibility?: (routeId: string) => void;
+  // Route selection props
+  selectedRouteId?: string | null;
+  onSelectRoute?: (routeId: string | null) => void;
+  // Authentication props
+  user?: User | null;
+  isAuthLoading?: boolean;
+  savedKeys?: KeyPairInfo[];
+  onLogin?: (provider: OAuthProvider) => void;
+  onLogout?: () => void;
+  onGenerateKeys?: () => Promise<{ pushKey: string; viewKey: string } | null>;
+  onAddKeyPair?: (pushKey: string, viewKey: string) => Promise<{ success: boolean; error?: string }>;
+  onRemoveSavedKey?: (keyId: string) => Promise<boolean>;
 }
 
 // Color palette for multiple routes - FLASHY colors for visibility
@@ -92,6 +98,17 @@ function SidePanel({
   onUpdateRouteColor,
   routeVisibility = {},
   onToggleRouteVisibility,
+  selectedRouteId,
+  onSelectRoute,
+  // Authentication props
+  user,
+  isAuthLoading = false,
+  savedKeys = [],
+  onLogin,
+  onLogout,
+  onGenerateKeys,
+  onAddKeyPair,
+  onRemoveSavedKey,
 }: SidePanelProps) {
   const [inputValue, setInputValue] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -101,6 +118,8 @@ function SidePanel({
   const [editingStaticRouteId, setEditingStaticRouteId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>('');
   const [colorPickerRouteId, setColorPickerRouteId] = useState<string | null>(null);
+  const [showLoginDropdown, setShowLoginDropdown] = useState(false);
+  const [showAddKeysForm, setShowAddKeysForm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const staticRouteNameInputRef = useRef<HTMLInputElement>(null);
@@ -146,30 +165,60 @@ function SidePanel({
     setGenerateError(null);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/Keys/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Use auth-aware generation if available
+      if (onGenerateKeys) {
+        const result = await onGenerateKeys();
+        if (result) {
+          setGeneratedKeys({
+            pushKey: result.pushKey,
+            viewKey: result.viewKey,
+          });
+          onAddViewKey(result.viewKey);
+        } else {
+          throw new Error('Failed to generate keys');
+        }
+      } else {
+        // Fallback to direct API call (for non-authenticated users)
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://localhost:7169';
+        const response = await fetch(`${BACKEND_URL}/api/Keys/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setGeneratedKeys({
+          pushKey: data.pushKey,
+          viewKey: data.viewKey,
+        });
+
+        // Automatically add the viewKey to the tracked routes
+        onAddViewKey(data.viewKey);
       }
-
-      const data: KeyPairResponse = await response.json();
-      setGeneratedKeys({
-        pushKey: data.pushKey,
-        viewKey: data.viewKey,
-      });
-
-      // Automatically add the viewKey to the tracked routes
-      onAddViewKey(data.viewKey);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate keys';
       setGenerateError(message);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleCopySavedKey = async (key: string) => {
+    try {
+      await navigator.clipboard.writeText(key);
+    } catch {
+      console.error('Failed to copy key');
+    }
+  };
+
+  const handleLoadSavedKey = (viewKey: string) => {
+    if (!viewKeys.includes(viewKey)) {
+      onAddViewKey(viewKey);
     }
   };
 
@@ -314,6 +363,134 @@ function SidePanel({
 
   return (
     <div className="side-panel">
+      {/* Account Section */}
+      <div className="side-panel-section account-section">
+        <h2 className="side-panel-title">Account</h2>
+        
+        {isAuthLoading ? (
+          <div className="auth-loading-state">Loading...</div>
+        ) : user ? (
+          // Authenticated user
+          <div className="account-content">
+            <div className="account-user-info">
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.displayName || 'User'} className="account-avatar" />
+              ) : (
+                <div className="account-avatar-placeholder">
+                  {(user.displayName || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="account-user-details">
+                <span className="account-username">{user.displayName || 'Unknown'}</span>
+                <span className="account-provider">
+                  {user.linkedProviders?.map(lp => lp.provider).join(', ') || ''}
+                </span>
+              </div>
+              <a href="/account" className="account-manage-btn" title="Manage account">
+                Manage
+              </a>
+              <button className="account-logout-btn" onClick={onLogout} title="Logout">
+                Logout
+              </button>
+            </div>
+
+            {/* Saved Keys */}
+            <div className="saved-keys-section">
+              <div className="saved-keys-header">
+                <span className="saved-keys-title">Saved Keys ({savedKeys.length})</span>
+                <button 
+                  className="add-keys-btn"
+                  onClick={() => setShowAddKeysForm(true)}
+                  title="Add existing key pair"
+                >
+                  + Add
+                </button>
+              </div>
+              
+              {savedKeys.length > 0 ? (
+                <div className="saved-keys-list">
+                  {savedKeys.map((keyPair) => (
+                    <div key={keyPair.id} className="saved-key-item">
+                      <div className="saved-key-info">
+                        <code className="saved-key-value" title={keyPair.viewKey}>
+                          {keyPair.viewKey.substring(0, 8)}...
+                        </code>
+                        <span className="saved-key-date">
+                          {new Date(keyPair.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="saved-key-actions">
+                        <button
+                          className="saved-key-copy-btn"
+                          onClick={() => handleCopySavedKey(keyPair.pushKey)}
+                          title="Copy Push Key"
+                        >
+                          Push
+                        </button>
+                        <button
+                          className="saved-key-copy-btn"
+                          onClick={() => handleCopySavedKey(keyPair.viewKey)}
+                          title="Copy View Key"
+                        >
+                          View
+                        </button>
+                        <button
+                          className="saved-key-load-btn"
+                          onClick={() => handleLoadSavedKey(keyPair.viewKey)}
+                          title="Load this key for tracking"
+                        >
+                          Load
+                        </button>
+                        <button
+                          className="saved-key-remove-btn"
+                          onClick={() => onRemoveSavedKey?.(keyPair.id)}
+                          title="Remove from account"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="saved-keys-empty">
+                  No saved keys yet. Generate new keys to save them automatically.
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // Not authenticated
+          <div className="account-login">
+            <p className="account-login-hint">
+              Sign in to save your keys permanently and access them from any device.
+            </p>
+            <div className="login-dropdown-container">
+              <button 
+                className="login-btn"
+                onClick={() => setShowLoginDropdown(!showLoginDropdown)}
+              >
+                Sign In
+              </button>
+              {showLoginDropdown && (
+                <div className="login-providers-dropdown">
+                  {OAUTH_PROVIDERS.map((provider) => (
+                    <button
+                      key={provider.id}
+                      className="login-provider-btn"
+                      onClick={() => { onLogin?.(provider.id); setShowLoginDropdown(false); }}
+                    >
+                      <span className="login-provider-icon" dangerouslySetInnerHTML={{ __html: PROVIDER_ICONS[provider.id] }} />
+                      <span>{provider.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Map Selection Section - always visible */}
       <div className="side-panel-section">
         <h2 className="side-panel-title">Map Selection</h2>
@@ -377,21 +554,23 @@ function SidePanel({
             {staticRouteIds.map((routeId, index) => {
               const routeColor = getRouteColorForId(routeId, index);
               const isVisible = routeVisibility[routeId] !== false;
+              const isSelected = selectedRouteId === routeId;
               return (
                 <div
                   key={routeId}
-                  className={`realtime-key-item ${!isVisible ? 'hidden' : ''}`}
+                  className={`realtime-key-item ${!isVisible ? 'hidden' : ''} ${isSelected ? 'selected' : ''}`}
                   style={{ borderLeftColor: routeColor }}
+                  onClick={() => onSelectRoute?.(routeId)}
                 >
                   <button
                     className="realtime-key-color-btn"
-                    onClick={() => handleOpenColorPicker(routeId)}
+                    onClick={(e) => { e.stopPropagation(); handleOpenColorPicker(routeId); }}
                     title="Change color"
                     style={{ backgroundColor: routeColor }}
                   />
                   <button
                     className="route-visibility-btn"
-                    onClick={() => onToggleRouteVisibility?.(routeId)}
+                    onClick={(e) => { e.stopPropagation(); onToggleRouteVisibility?.(routeId); }}
                     title={isVisible ? "Hide route" : "Show route"}
                   >
                     {isVisible ? '👁️' : '👁️‍🗨️'}
@@ -405,13 +584,14 @@ function SidePanel({
                       onChange={(e) => setEditingName(e.target.value)}
                       onBlur={() => handleSaveStaticRouteName(routeId)}
                       onKeyDown={(e) => handleStaticRouteNameKeyDown(e, routeId)}
+                      onClick={(e) => e.stopPropagation()}
                       placeholder="Route name"
                       maxLength={50}
                     />
                   ) : (
                     <span
                       className="realtime-key-text"
-                      onClick={() => handleStartEditingStaticRouteName(routeId)}
+                      onClick={(e) => { e.stopPropagation(); handleStartEditingStaticRouteName(routeId); }}
                       title="Click to edit name"
                       style={{ cursor: 'pointer' }}
                     >
@@ -420,14 +600,14 @@ function SidePanel({
                   )}
                   <button
                     className="realtime-focus-player-btn"
-                    onClick={() => onFocusStaticRoute?.(routeId)}
+                    onClick={(e) => { e.stopPropagation(); onSelectRoute?.(routeId); onFocusStaticRoute?.(routeId); }}
                     title="Focus on this route"
                   >
                     Focus
                   </button>
                   <button
                     className="realtime-remove-btn"
-                    onClick={() => onRemoveStaticRoute?.(routeId)}
+                    onClick={(e) => { e.stopPropagation(); onRemoveStaticRoute?.(routeId); }}
                     title="Remove"
                   >
                     ×
@@ -533,21 +713,23 @@ function SidePanel({
             {viewKeys.map((key, index) => {
               const routeColor = getRouteColorForId(key, index);
               const isVisible = routeVisibility[key] !== false;
+              const isSelected = selectedRouteId === key;
               return (
                 <div
                   key={key}
-                  className={`realtime-key-item ${!isVisible ? 'hidden' : ''}`}
+                  className={`realtime-key-item ${!isVisible ? 'hidden' : ''} ${isSelected ? 'selected' : ''}`}
                   style={{ borderLeftColor: routeColor }}
+                  onClick={() => onSelectRoute?.(key)}
                 >
                   <button
                     className="realtime-key-color-btn"
-                    onClick={() => handleOpenColorPicker(key)}
+                    onClick={(e) => { e.stopPropagation(); handleOpenColorPicker(key); }}
                     title="Change color"
                     style={{ backgroundColor: routeColor }}
                   />
                   <button
                     className="route-visibility-btn"
-                    onClick={() => onToggleRouteVisibility?.(key)}
+                    onClick={(e) => { e.stopPropagation(); onToggleRouteVisibility?.(key); }}
                     title={isVisible ? "Hide route" : "Show route"}
                   >
                     {isVisible ? '👁️' : '👁️‍🗨️'}
@@ -561,20 +743,21 @@ function SidePanel({
                       onChange={(e) => setEditingName(e.target.value)}
                       onBlur={() => handleSaveName(key)}
                       onKeyDown={(e) => handleNameInputKeyDown(e, key)}
+                      onClick={(e) => e.stopPropagation()}
                       placeholder="Player name"
                       maxLength={50}
                     />
                   ) : (
                     <span
                       className="realtime-key-text"
-                      onClick={() => handleStartEditingName(key)}
+                      onClick={(e) => { e.stopPropagation(); handleStartEditingName(key); }}
                       title="Click to edit name"
                       style={{ cursor: 'pointer' }}
                     >
                       {getDisplayName(key)}
                     </span>
                   )}
-                  <span className="realtime-key-status">
+                  <span className="realtime-key-status" onClick={(e) => e.stopPropagation()}>
                     {getStatusIcon(connectionStatus[key] || 'disconnected')}
                     <span className="realtime-status-text">
                       {getStatusText(connectionStatus[key] || 'disconnected')}
@@ -582,14 +765,14 @@ function SidePanel({
                   </span>
                   <button
                     className={`realtime-track-btn ${trackedViewKey === key ? 'active' : ''}`}
-                    onClick={() => onSetTrackedRoute?.(trackedViewKey === key ? null : key)}
+                    onClick={(e) => { e.stopPropagation(); onSetTrackedRoute?.(trackedViewKey === key ? null : key); }}
                     title={trackedViewKey === key ? "Stop tracking" : "Track this player"}
                   >
                     {trackedViewKey === key ? 'Tracking' : 'Track'}
                   </button>
                   <button
                     className="realtime-remove-btn"
-                    onClick={() => onRemoveViewKey(key)}
+                    onClick={(e) => { e.stopPropagation(); onRemoveViewKey(key); }}
                     title="Remove"
                   >
                     ×
@@ -616,6 +799,14 @@ function SidePanel({
           selectedColor={getRouteColorForId(colorPickerRouteId)}
           onColorSelect={handleColorSelect}
           onClose={handleCloseColorPicker}
+        />
+      )}
+
+      {/* Add Keys Form Modal */}
+      {showAddKeysForm && onAddKeyPair && (
+        <AddKeysForm
+          onSubmit={onAddKeyPair}
+          onCancel={() => setShowAddKeysForm(false)}
         />
       )}
     </div>
