@@ -809,6 +809,11 @@ function SidePanel({
           onCancel={() => setShowAddKeysForm(false)}
         />
       )}
+
+      {/* Footer */}
+      <div className="sidepanel-footer">
+        <a href="/privacy" className="privacy-link">Privacy & Terms</a>
+      </div>
     </div>
   );
 }

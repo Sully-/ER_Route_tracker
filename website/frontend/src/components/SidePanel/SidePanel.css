@@ -938,3 +938,22 @@
   width: 100%;
   height: 100%;
 }
+
+/* Footer */
+.sidepanel-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(139, 115, 85, 0.2);
+  text-align: center;
+}
+
+.privacy-link {
+  color: #666;
+  font-size: 0.75rem;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.privacy-link:hover {
+  color: #999;
+}
