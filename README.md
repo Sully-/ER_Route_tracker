@@ -2,7 +2,7 @@
 
 > **Alpha Version** - Under active development
 
-A mod for Elden Ring that records player position to track speedrun routes, with an interactive map viewer.
+A mod for Elden Ring that records player position to track routes, with an interactive map viewer.
 
 **Live Viewer:** https://er-route-tracker.sulli.tech/
 
@@ -146,30 +146,60 @@ Give your **View Key** to anyone who wants to watch your route:
 
 ## Viewing Routes
 
-### Load a Static Route (JSON File)
+### Account (Optional)
 
-1. Go to https://er-route-tracker.sulli.tech/
-2. Click the **"Load Route"** button in the toolbar
-3. Select your JSON route file
-4. The route is displayed on the map
+Sign in to save your keys permanently and generate new tracking keys:
+1. Click **"Sign In"** in the Account section
+2. Choose a provider (Discord, Twitch, or Google)
+3. Your keys will be saved to your account automatically
 
-### Watch a Live Route
+### Load Static Routes (JSON Files)
 
-1. Go to https://er-route-tracker.sulli.tech/
-2. Open the side panel
-3. In "Real-time Tracking", paste the **View Key**
-4. Click "Add"
-5. The route appears and updates in real-time
+1. In the **"Static Routes"** section, click **"Load Route"**
+2. Select your JSON route file
+3. The route appears on the map
+
+### Watch Live Routes
+
+1. In the **"Real-time Routes"** section, paste a **View Key**
+2. Click **"Add"**
+3. The route appears and updates in real-time
+
+**Note:** You must be signed in to generate new tracking keys.
+
+### Route Management
+
+For all routes (static and live), you can:
+- Click the **color button** to change the route color
+- Click the **name** to rename it
+- Click the **eye icon** to hide/show
+
+Static routes only:
+- Click **"Focus"** to center the map on the route
+
+Live routes only:
+- Click **"Track"** to automatically follow the player on the map
+
+### Share Your Route
+
+To let others watch your route in real-time, you can either:
+
+**Option 1: Share the URL directly**
+- Give them the link: `https://er-route-tracker.sulli.tech/?viewKeys=YOUR_VIEW_KEY`
+- The route will load automatically when they open the link
+
+**Option 2: Share the View Key**
+1. Give them your **View Key** (found in the side panel after generating keys, or in your Account page)
+2. They paste it in the **"Real-time Routes"** section and click **"Add"**
+
+The View Key is read-only - viewers can only watch, not modify your route.
 
 ### Map Navigation
 
+- Use the **Map Selection** buttons to switch between maps
+- Toggle **location icons** (graces, bosses, etc.) with the Icons button
 - **Scroll** to zoom in/out
 - **Click and drag** to pan
-- Use the **map selector** to switch between:
-  - Lands Between
-  - Shadow Realm (DLC)
-  - Underground
-- Toggle **location icons** (graces, bosses, etc.) with the icons button
 
 ---
 
