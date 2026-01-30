@@ -51,6 +51,11 @@ public interface IKeyService
     /// Remove a key pair from a user's account (makes it anonymous again).
     /// </summary>
     Task<bool> RemoveKeyPairFromUserAsync(Guid userId, Guid keyPairId);
+    
+    /// <summary>
+    /// Get a key pair by its ID
+    /// </summary>
+    Task<KeyPair?> GetKeyPairByIdAsync(Guid keyPairId);
 }
 
 /// <summary>

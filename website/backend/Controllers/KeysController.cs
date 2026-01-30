@@ -1,7 +1,7 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using RouteTracker.Extensions;
 using RouteTracker.Models;
 using RouteTracker.Services;
 
@@ -22,25 +22,18 @@ public class KeysController : ControllerBase
 
     /// <summary>
     /// Generate a new push/view key pair.
-    /// If authenticated, the keys are linked to the user's account (permanent).
-    /// If not authenticated, keys expire after 24h of inactivity.
+    /// Requires authentication - keys are linked to the user's account (permanent).
     /// </summary>
     [HttpPost("generate")]
+    [Authorize]
     [EnableRateLimiting("KeyGenEndpoint")]
     public async Task<ActionResult<KeyPairResponse>> Generate()
     {
-        // Check if user is authenticated
-        Guid? userId = null;
-        if (User.Identity?.IsAuthenticated == true)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedUserId))
-            {
-                userId = parsedUserId;
-            }
-        }
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized(new { message = "Invalid token" });
 
-        var keyPair = await _keyService.GenerateKeyPairAsync(userId);
+        var keyPair = await _keyService.GenerateKeyPairAsync(userId.Value);
         
         return Ok(new KeyPairResponse(keyPair.PushKey, keyPair.ViewKey));
     }
@@ -68,13 +61,11 @@ public class KeysController : ControllerBase
     [Authorize]
     public async Task<ActionResult<List<KeyPairInfoResponse>>> GetMyKeys()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
+        var userId = User.GetUserId();
+        if (userId == null)
             return Unauthorized(new { message = "Invalid token" });
-        }
 
-        var keyPairs = await _keyService.GetUserKeyPairsAsync(userId);
+        var keyPairs = await _keyService.GetUserKeyPairsAsync(userId.Value);
         
         var response = keyPairs.Select(k => new KeyPairInfoResponse(
             k.Id,
@@ -96,13 +87,11 @@ public class KeysController : ControllerBase
     [Authorize]
     public async Task<ActionResult<KeyPairInfoResponse>> AddExistingKeyPair([FromBody] AddKeyPairRequest request)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
+        var userId = User.GetUserId();
+        if (userId == null)
             return Unauthorized(new { message = "Invalid token" });
-        }
 
-        var result = await _keyService.AddExistingKeyPairToUserAsync(userId, request.PushKey, request.ViewKey);
+        var result = await _keyService.AddExistingKeyPairToUserAsync(userId.Value, request.PushKey, request.ViewKey);
 
         if (!result.Success)
         {
@@ -128,13 +117,11 @@ public class KeysController : ControllerBase
     [Authorize]
     public async Task<IActionResult> RemoveKeyPair(Guid keyId)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
+        var userId = User.GetUserId();
+        if (userId == null)
             return Unauthorized(new { message = "Invalid token" });
-        }
 
-        var result = await _keyService.RemoveKeyPairFromUserAsync(userId, keyId);
+        var result = await _keyService.RemoveKeyPairFromUserAsync(userId.Value, keyId);
 
         if (!result)
         {

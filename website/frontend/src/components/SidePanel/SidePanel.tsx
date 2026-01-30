@@ -373,25 +373,34 @@ function SidePanel({
           // Authenticated user
           <div className="account-content">
             <div className="account-user-info">
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt={user.displayName || 'User'} className="account-avatar" />
-              ) : (
-                <div className="account-avatar-placeholder">
-                  {(user.displayName || 'U').charAt(0).toUpperCase()}
+              <div className="account-user-row">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={user.displayName || 'User'} className="account-avatar" />
+                ) : (
+                  <div className="account-avatar-placeholder">
+                    {(user.displayName || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="account-user-details">
+                  <span className="account-username">{user.displayName || 'Unknown'}</span>
+                  <span className="account-provider">
+                    {user.linkedProviders?.map(lp => lp.provider).join(', ') || ''}
+                  </span>
                 </div>
-              )}
-              <div className="account-user-details">
-                <span className="account-username">{user.displayName || 'Unknown'}</span>
-                <span className="account-provider">
-                  {user.linkedProviders?.map(lp => lp.provider).join(', ') || ''}
-                </span>
               </div>
-              <a href="/account" className="account-manage-btn" title="Manage account">
-                Manage
-              </a>
-              <button className="account-logout-btn" onClick={onLogout} title="Logout">
-                Logout
-              </button>
+              <div className="account-actions">
+                <a href="/account" className="account-manage-btn" title="Manage account">
+                  Manage
+                </a>
+                {user.isAdmin && (
+                  <a href="/admin" className="account-admin-btn" title="Admin Dashboard">
+                    Admin
+                  </a>
+                )}
+                <button className="account-logout-btn" onClick={onLogout} title="Logout">
+                  Logout
+                </button>
+              </div>
             </div>
 
             {/* Saved Keys */}
@@ -643,14 +652,17 @@ function SidePanel({
             <button type="submit" className="realtime-add-btn">
               Add
             </button>
-            <button
-              type="button"
-              className="realtime-generate-btn"
-              onClick={handleGenerateKeys}
-              disabled={isGenerating}
-            >
-              {isGenerating ? 'Generating...' : 'Generate'}
-            </button>
+            {/* Show Generate button only for authenticated users */}
+            {user && (
+              <button
+                type="button"
+                className="realtime-generate-btn"
+                onClick={handleGenerateKeys}
+                disabled={isGenerating}
+              >
+                {isGenerating ? 'Generating...' : 'Generate'}
+              </button>
+            )}
           </div>
         </form>
 
@@ -705,6 +717,13 @@ function SidePanel({
             >
               ×
             </button>
+          </div>
+        )}
+
+        {/* Auth hint for non-authenticated users */}
+        {!user && !isAuthLoading && (
+          <div className="realtime-auth-hint">
+            Please log in to generate new tracking keys.
           </div>
         )}
 

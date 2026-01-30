@@ -137,5 +137,34 @@ public class RouteService : IRouteService
 
         return routePoints;
     }
+
+    public async Task<int> DeleteRoutePointsByKeyPairIdAsync(Guid keyPairId)
+    {
+        // Find the key pair
+        var keyPair = await _context.KeyPairs
+            .FirstOrDefaultAsync(k => k.Id == keyPairId);
+
+        if (keyPair == null)
+        {
+            return -1;
+        }
+
+        // Delete all route points for this key pair's push key
+        var routePoints = await _context.RoutePoints
+            .Where(rp => rp.PushKey == keyPair.PushKey)
+            .ToListAsync();
+
+        var count = routePoints.Count;
+        
+        if (count > 0)
+        {
+            _context.RoutePoints.RemoveRange(routePoints);
+            await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Deleted {Count} route points for key pair {KeyPairId}", count, keyPairId);
+        }
+
+        return count;
+    }
 }
 

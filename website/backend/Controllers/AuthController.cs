@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using RouteTracker.Extensions;
 using RouteTracker.Models;
 using RouteTracker.Services;
 
@@ -273,13 +274,11 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> UnlinkProvider(string provider)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
+        var userId = User.GetUserId();
+        if (userId == null)
             return Unauthorized(new { message = "Invalid token" });
-        }
 
-        var result = await _userService.UnlinkProviderAsync(userId, provider);
+        var result = await _userService.UnlinkProviderAsync(userId.Value, provider);
         
         if (result.Success)
         {
@@ -298,13 +297,11 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<ActionResult<UserInfoResponse>> GetCurrentUser()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
+        var userId = User.GetUserId();
+        if (userId == null)
             return Unauthorized(new { message = "Invalid token" });
-        }
 
-        var user = await _userService.GetUserWithProvidersAsync(userId);
+        var user = await _userService.GetUserWithProvidersAsync(userId.Value);
         if (user == null)
         {
             return NotFound(new { message = "User not found" });
@@ -326,6 +323,7 @@ public class AuthController : ControllerBase
             user.AvatarUrl,
             user.CreatedAt,
             user.LastLoginAt,
+            user.IsAdmin,
             linkedProviders
         ));
     }
@@ -337,13 +335,11 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<ActionResult<List<LinkedProviderResponse>>> GetLinkedProviders()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
+        var userId = User.GetUserId();
+        if (userId == null)
             return Unauthorized(new { message = "Invalid token" });
-        }
 
-        var providers = await _userService.GetLinkedProvidersAsync(userId);
+        var providers = await _userService.GetLinkedProvidersAsync(userId.Value);
         
         return Ok(providers.Select(lp => new LinkedProviderResponse(
             lp.Id,
@@ -379,6 +375,11 @@ public class AuthController : ControllerBase
         if (!string.IsNullOrEmpty(user.Email))
         {
             claims.Add(new Claim(ClaimTypes.Email, user.Email));
+        }
+
+        if (user.IsAdmin)
+        {
+            claims.Add(new Claim("IsAdmin", "true"));
         }
 
         var tokenDescriptor = new SecurityTokenDescriptor
@@ -423,6 +424,7 @@ public record UserInfoResponse(
     string? AvatarUrl,
     DateTime CreatedAt,
     DateTime LastLoginAt,
+    bool IsAdmin,
     List<LinkedProviderResponse> LinkedProviders
 );
 

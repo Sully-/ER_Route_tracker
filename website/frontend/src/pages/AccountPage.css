@@ -306,6 +306,28 @@
   margin-top: 8px;
 }
 
+.key-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reset-routes-btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #666;
+  border-radius: 4px;
+  color: #888;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.reset-routes-btn:hover {
+  border-color: #f0a500;
+  color: #f0a500;
+}
+
 .remove-key-btn {
   padding: 6px 12px;
   background: transparent;
@@ -334,7 +356,8 @@
     flex-direction: column;
   }
   
-  .remove-key-btn {
+  .key-actions {
+    flex-direction: row;
     align-self: flex-end;
   }
 }

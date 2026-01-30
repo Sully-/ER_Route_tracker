@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
+using RouteTracker.Extensions;
 using RouteTracker.Hubs;
 using RouteTracker.Models;
 using RouteTracker.Services;
@@ -132,6 +134,40 @@ public class RoutePointsController : ControllerBase
         var points = await _routeService.GetRoutePointsAsync(viewKey);
         
         return Ok(points);
+    }
+
+    /// <summary>
+    /// Reset (delete all route points) for a key pair.
+    /// Requires authentication - only the owner or an admin can reset routes.
+    /// </summary>
+    [HttpDelete("{keyId}/reset")]
+    [Authorize]
+    public async Task<IActionResult> ResetRoutes(Guid keyId)
+    {
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized(new { message = "Invalid token" });
+
+        // Get the key pair
+        var keyPair = await _keyService.GetKeyPairByIdAsync(keyId);
+        if (keyPair == null)
+            return NotFound(new { message = "Key pair not found" });
+
+        // Authorization: owner OR admin
+        if (keyPair.UserId != userId && !User.IsAdmin())
+        {
+            _logger.LogWarning("User {UserId} attempted to reset routes for key {KeyId} owned by {OwnerId}", 
+                userId, keyId, keyPair.UserId);
+            return Forbid();
+        }
+
+        // Delete all route points
+        var deletedCount = await _routeService.DeleteRoutePointsByKeyPairIdAsync(keyId);
+        
+        _logger.LogInformation("User {UserId} reset routes for key {KeyId}: {DeletedCount} points deleted", 
+            userId, keyId, deletedCount);
+
+        return Ok(new { message = "Routes reset successfully", deletedCount });
     }
 }
 

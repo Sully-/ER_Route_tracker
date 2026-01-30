@@ -24,6 +24,7 @@ export function setToken(token: string): void {
  * Remove the stored JWT token
  */
 export function removeToken(): void {
+  console.log('[removeToken] Token being removed! Stack:', new Error().stack);
   localStorage.removeItem(TOKEN_KEY);
 }
 
@@ -62,38 +63,54 @@ export function logout(): void {
 
 /**
  * Get current user info from the server
+ * @param signal Optional AbortSignal to cancel the request
+ * @throws AbortError if request was aborted
+ * @throws Error for network errors (caller should not clear auth state)
+ * @returns User object, or null only if token is missing or explicitly invalid (401)
  */
-export async function getCurrentUser(): Promise<User | null> {
+export async function getCurrentUser(signal?: AbortSignal): Promise<User | null> {
   const token = getToken();
+  console.log('[getCurrentUser] Token present:', !!token, token ? `(${token.substring(0, 20)}...)` : '');
   if (!token) return null;
 
   try {
+    console.log('[getCurrentUser] Fetching /api/auth/me...');
     const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
+      signal,
     });
+
+    console.log('[getCurrentUser] Response status:', response.status);
 
     if (!response.ok) {
       if (response.status === 401) {
         // Token is invalid/expired, remove it
+        console.log('[getCurrentUser] 401 received, removing token');
         removeToken();
         return null;
       }
+      // Other HTTP errors - throw to let caller handle
       throw new Error(`Failed to get user info: ${response.status}`);
     }
 
-    return await response.json();
+    const user = await response.json();
+    console.log('[getCurrentUser] Got user:', user?.displayName);
+    return user;
   } catch (error) {
-    console.error('Error getting user info:', error);
-    return null;
+    // Re-throw ALL errors for proper handling by caller
+    // The caller (useAuth) will decide whether to clear auth state
+    console.log('[getCurrentUser] Error:', error instanceof Error ? error.name : 'unknown', error);
+    throw error;
   }
 }
 
 /**
  * Get user's saved key pairs
+ * @param signal Optional AbortSignal to cancel the request
  */
-export async function getMyKeys(): Promise<KeyPairInfo[]> {
+export async function getMyKeys(signal?: AbortSignal): Promise<KeyPairInfo[]> {
   const token = getToken();
   if (!token) return [];
 
@@ -102,6 +119,7 @@ export async function getMyKeys(): Promise<KeyPairInfo[]> {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
+      signal,
     });
 
     if (!response.ok) {
@@ -114,24 +132,29 @@ export async function getMyKeys(): Promise<KeyPairInfo[]> {
 
     return await response.json();
   } catch (error) {
+    // Re-throw abort errors for proper handling by caller
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
     console.error('Error getting keys:', error);
     return [];
   }
 }
 
 /**
- * Generate a new key pair (linked to account if authenticated)
+ * Generate a new key pair (requires authentication - linked to user's account)
  */
 export async function generateKeys(): Promise<{ pushKey: string; viewKey: string } | null> {
+  const token = getToken();
+  if (!token) {
+    throw new Error('Authentication required. Please log in to generate keys.');
+  }
+
   try {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
     };
-
-    const token = getToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
 
     const response = await fetch(`${BACKEND_URL}/api/keys/generate`, {
       method: 'POST',
@@ -139,13 +162,17 @@ export async function generateKeys(): Promise<{ pushKey: string; viewKey: string
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        removeToken(); // Token invalid/expired
+        throw new Error('Your session has expired. Please log in again.');
+      }
       throw new Error(`Failed to generate keys: ${response.status}`);
     }
 
     return await response.json();
   } catch (error) {
     console.error('Error generating keys:', error);
-    return null;
+    throw error; // Propagate error for UI display
   }
 }
 
@@ -296,5 +323,41 @@ export async function unlinkProvider(provider: OAuthProvider): Promise<{ success
   } catch (error) {
     console.error('Error unlinking provider:', error);
     return { success: false, error: 'Failed to unlink provider' };
+  }
+}
+
+/**
+ * Reset (delete all route points) for a key pair
+ */
+export async function resetKeyRoutes(keyId: string): Promise<{ success: boolean; deletedCount?: number; error?: string }> {
+  const token = getToken();
+  if (!token) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/routepoints/${keyId}/reset`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        return { success: false, error: 'You do not have permission to reset this route' };
+      }
+      if (response.status === 404) {
+        return { success: false, error: 'Key pair not found' };
+      }
+      const errorData = await response.json().catch(() => ({}));
+      return { success: false, error: errorData.message || 'Failed to reset routes' };
+    }
+
+    const data = await response.json();
+    return { success: true, deletedCount: data.deletedCount };
+  } catch (error) {
+    console.error('Error resetting routes:', error);
+    return { success: false, error: 'Failed to reset routes' };
   }
 }

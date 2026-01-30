@@ -16,6 +16,7 @@ export interface User {
   avatarUrl?: string;
   createdAt: string;
   lastLoginAt: string;
+  isAdmin: boolean;
   linkedProviders: LinkedProvider[];
 }
 

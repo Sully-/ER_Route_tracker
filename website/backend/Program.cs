@@ -59,6 +59,7 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<IKeyService, KeyService>();
 builder.Services.AddScoped<IRouteService, RouteService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 // Configure cleanup background service
 builder.Services.AddHostedService<KeyCleanupService>();
@@ -221,6 +222,13 @@ builder.Services.AddSingleton(new JwtSettings
 builder.Services.AddSingleton(new FrontendSettings
 {
     Url = frontendUrl
+});
+
+// Configure Authorization policies
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireClaim("IsAdmin", "true"));
 });
 
 // Configure CORS for local and server deployment

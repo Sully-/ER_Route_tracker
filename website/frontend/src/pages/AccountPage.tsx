@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, KeyPairInfo, OAUTH_PROVIDERS, PROVIDER_ICONS, OAuthProvider } from '../types/auth';
-import { getCurrentUser, getMyKeys, removeKeyPair, logout, linkProvider, unlinkProvider } from '../services/authService';
+import { getCurrentUser, getMyKeys, removeKeyPair, resetKeyRoutes, logout, linkProvider, unlinkProvider } from '../services/authService';
 import './AccountPage.css';
 
 export default function AccountPage() {
@@ -90,6 +90,19 @@ export default function AccountPage() {
     const success = await removeKeyPair(keyId);
     if (success) {
       setKeys(keys.filter(k => k.id !== keyId));
+    }
+  }
+
+  async function handleResetRoutes(keyId: string) {
+    if (!confirm('Are you sure you want to delete ALL route points for this key? This action cannot be undone.')) return;
+    
+    setError(null);
+    const result = await resetKeyRoutes(keyId);
+    
+    if (result.success) {
+      setSuccessMessage(`Successfully deleted ${result.deletedCount} route point(s)`);
+    } else {
+      setError(result.error || 'Failed to reset routes');
     }
   }
 
@@ -257,13 +270,22 @@ export default function AccountPage() {
                       Last activity: {new Date(key.lastActivityAt).toLocaleDateString()}
                     </div>
                   </div>
-                  <button 
-                    className="remove-key-btn"
-                    onClick={() => handleRemoveKey(key.id)}
-                    title="Remove key pair"
-                  >
-                    Remove
-                  </button>
+                  <div className="key-actions">
+                    <button 
+                      className="reset-routes-btn"
+                      onClick={() => handleResetRoutes(key.id)}
+                      title="Delete all route points"
+                    >
+                      Reset Routes
+                    </button>
+                    <button 
+                      className="remove-key-btn"
+                      onClick={() => handleRemoveKey(key.id)}
+                      title="Remove key pair"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

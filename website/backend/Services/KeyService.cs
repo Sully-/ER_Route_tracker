@@ -183,5 +183,11 @@ public class KeyService : IKeyService
 
         return true;
     }
+
+    public async Task<KeyPair?> GetKeyPairByIdAsync(Guid keyPairId)
+    {
+        return await _context.KeyPairs
+            .FirstOrDefaultAsync(k => k.Id == keyPairId);
+    }
 }
 

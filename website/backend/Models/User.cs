@@ -40,6 +40,11 @@ public class User
     public DateTime LastLoginAt { get; set; } = DateTime.UtcNow;
     
     /// <summary>
+    /// Whether this user has admin privileges
+    /// </summary>
+    public bool IsAdmin { get; set; } = false;
+    
+    /// <summary>
     /// Navigation property for linked OAuth providers
     /// </summary>
     public ICollection<LinkedProvider> LinkedProviders { get; set; } = new List<LinkedProvider>();
