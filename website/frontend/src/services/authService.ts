@@ -327,6 +327,45 @@ export async function unlinkProvider(provider: OAuthProvider): Promise<{ success
 }
 
 /**
+ * Get route points for a view key
+ */
+export async function getRoutePoints(viewKey: string): Promise<{ success: boolean; points?: RoutePointData[]; error?: string }> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/routepoints?viewKey=${encodeURIComponent(viewKey)}`);
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { success: false, error: 'Invalid or expired view key' };
+      }
+      return { success: false, error: `Failed to get route points: ${response.status}` };
+    }
+
+    const points = await response.json();
+    return { success: true, points };
+  } catch (error) {
+    console.error('Error getting route points:', error);
+    return { success: false, error: 'Failed to get route points' };
+  }
+}
+
+/**
+ * Route point data from the server
+ */
+export interface RoutePointData {
+  x: number;
+  y: number;
+  z: number;
+  globalX: number;
+  globalY: number;
+  globalZ: number;
+  mapId: number;
+  mapIdStr: string | null;
+  globalMapId: number;
+  timestampMs: number;
+  receivedAt: string;
+}
+
+/**
  * Reset (delete all route points) for a key pair
  */
 export async function resetKeyRoutes(keyId: string): Promise<{ success: boolean; deletedCount?: number; error?: string }> {

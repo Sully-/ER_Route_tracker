@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { User, KeyPairInfo, OAUTH_PROVIDERS, PROVIDER_ICONS, OAuthProvider } from '../types/auth';
-import { getCurrentUser, getMyKeys, removeKeyPair, resetKeyRoutes, logout, linkProvider, unlinkProvider } from '../services/authService';
+import { getCurrentUser, getMyKeys, removeKeyPair, resetKeyRoutes, logout, linkProvider, unlinkProvider, getRoutePoints, RoutePointData } from '../services/authService';
+import { exportRouteAsJson } from '../utils/routeExport';
+import { Route } from '../types/route';
 import './AccountPage.css';
 
 export default function AccountPage() {
@@ -10,6 +12,7 @@ export default function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [linkingProvider, setLinkingProvider] = useState<string | null>(null);
+  const [exportingKeyId, setExportingKeyId] = useState<string | null>(null);
 
   useEffect(() => {
     // Check for success/error messages in URL
@@ -103,6 +106,60 @@ export default function AccountPage() {
       setSuccessMessage(`Successfully deleted ${result.deletedCount} route point(s)`);
     } else {
       setError(result.error || 'Failed to reset routes');
+    }
+  }
+
+  async function handleExportRoute(key: KeyPairInfo) {
+    setExportingKeyId(key.id);
+    setError(null);
+    
+    try {
+      const result = await getRoutePoints(key.viewKey);
+      
+      if (!result.success || !result.points) {
+        setError(result.error || 'Failed to get route points');
+        return;
+      }
+      
+      if (result.points.length === 0) {
+        setError('No route points to export for this key');
+        return;
+      }
+      
+      // Convert server format to Route format
+      const route: Route = {
+        name: `Route ${key.viewKey.substring(0, 8)}`,
+        recorded_at: new Date().toISOString(),
+        duration_secs: 0,
+        interval_ms: 100,
+        point_count: result.points.length,
+        points: result.points.map((p: RoutePointData) => ({
+          x: p.x,
+          y: p.y,
+          z: p.z,
+          global_x: p.globalX,
+          global_y: p.globalY,
+          global_z: p.globalZ,
+          map_id: p.mapId,
+          map_id_str: p.mapIdStr || '',
+          global_map_id: p.globalMapId,
+          timestamp_ms: p.timestampMs,
+        })),
+      };
+      
+      // Calculate duration from timestamps
+      if (route.points.length > 1) {
+        route.duration_secs = (route.points[route.points.length - 1].timestamp_ms - route.points[0].timestamp_ms) / 1000;
+      }
+      
+      const filename = `route_${key.viewKey.substring(0, 8)}`;
+      exportRouteAsJson(route, filename);
+      setSuccessMessage(`Exported ${result.points.length} route points`);
+    } catch (err) {
+      console.error('Export error:', err);
+      setError('Failed to export route');
+    } finally {
+      setExportingKeyId(null);
     }
   }
 
@@ -271,6 +328,14 @@ export default function AccountPage() {
                     </div>
                   </div>
                   <div className="key-actions">
+                    <button 
+                      className="export-route-btn"
+                      onClick={() => handleExportRoute(key)}
+                      disabled={exportingKeyId === key.id}
+                      title="Export route as JSON file"
+                    >
+                      {exportingKeyId === key.id ? 'Exporting...' : 'Export Route'}
+                    </button>
                     <button 
                       className="reset-routes-btn"
                       onClick={() => handleResetRoutes(key.id)}

@@ -312,6 +312,27 @@
   gap: 8px;
 }
 
+.export-route-btn {
+  padding: 6px 12px;
+  background: rgba(107, 139, 255, 0.15);
+  border: 1px solid #6b8bff;
+  border-radius: 4px;
+  color: #6b8bff;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+}
+
+.export-route-btn:hover:not(:disabled) {
+  background: rgba(107, 139, 255, 0.25);
+  color: #8ba5ff;
+}
+
+.export-route-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .reset-routes-btn {
   padding: 6px 12px;
   background: transparent;
