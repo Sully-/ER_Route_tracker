@@ -6,6 +6,18 @@ A mod for Elden Ring that records player position to track routes, with an inter
 
 **Live Viewer:** https://er-route-tracker.sulli.tech/
 
+<p align="center">
+  <img src="web_site_route.png" width="300" alt="Map viewer">
+  <br/>
+  <em>Interactive map viewer</em>
+</p>
+
+<p align="center">
+  <img src="mod.png" width="200" alt="Overlay">
+  <br/>
+  <em>In-game overlay</em>
+</p>
+
 ## Features
 
 ### Mod (In-Game Tracker)
