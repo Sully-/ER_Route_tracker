@@ -54,7 +54,6 @@ interface SidePanelProps {
   onLogout?: () => void;
   onGenerateKeys?: () => Promise<{ pushKey: string; viewKey: string } | null>;
   onAddKeyPair?: (pushKey: string, viewKey: string) => Promise<{ success: boolean; error?: string }>;
-  onRemoveSavedKey?: (keyId: string) => Promise<boolean>;
 }
 
 // Color palette for multiple routes - FLASHY colors for visibility
@@ -108,7 +107,6 @@ function SidePanel({
   onLogout,
   onGenerateKeys,
   onAddKeyPair,
-  onRemoveSavedKey,
 }: SidePanelProps) {
   const [inputValue, setInputValue] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -449,13 +447,6 @@ function SidePanel({
                           title="Load this key for tracking"
                         >
                           Load
-                        </button>
-                        <button
-                          className="saved-key-remove-btn"
-                          onClick={() => onRemoveSavedKey?.(keyPair.id)}
-                          title="Remove from account"
-                        >
-                          &times;
                         </button>
                       </div>
                     </div>

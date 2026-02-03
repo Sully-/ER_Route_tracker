@@ -110,25 +110,26 @@ public class KeysController : ControllerBase
     }
 
     /// <summary>
-    /// Remove a key pair from the authenticated user's account.
-    /// The key pair becomes anonymous again (subject to 24h expiration).
+    /// Deactivate a key pair from the authenticated user's account.
+    /// The key pair remains linked to the user but becomes inactive.
+    /// It will be permanently deleted after 24h by the cleanup service.
     /// </summary>
     [HttpDelete("{keyId}")]
     [Authorize]
-    public async Task<IActionResult> RemoveKeyPair(Guid keyId)
+    public async Task<IActionResult> DeactivateKeyPair(Guid keyId)
     {
         var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new { message = "Invalid token" });
 
-        var result = await _keyService.RemoveKeyPairFromUserAsync(userId.Value, keyId);
+        var result = await _keyService.DeactivateKeyPairAsync(userId.Value, keyId);
 
         if (!result)
         {
             return NotFound(new { message = "Key pair not found or does not belong to you" });
         }
 
-        return Ok(new { message = "Key pair removed from account" });
+        return Ok(new { message = "Key pair deactivated. It will be permanently deleted after 24 hours." });
     }
 }
 

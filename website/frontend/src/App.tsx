@@ -126,7 +126,6 @@ function App() {
     logout,
     generateKeys,
     addKeyPair,
-    removeKeyPair,
   } = useAuth();
   
   // Parse viewkeys from URL only once on mount
@@ -370,7 +369,6 @@ function App() {
         onLogout={logout}
         onGenerateKeys={generateKeys}
         onAddKeyPair={addKeyPair}
-        onRemoveSavedKey={removeKeyPair}
       />
       
       {/* Map Container - displays both static and realtime routes */}

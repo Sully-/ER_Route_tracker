@@ -86,9 +86,9 @@ public class KeyService : IKeyService
     {
         var cutoff = DateTime.UtcNow.AddHours(-expirationHours);
         
-        // Find expired keys - ONLY anonymous keys (UserId == null)
+        // Find expired keys: anonymous keys (UserId == null) OR inactive keys (IsActive == false)
         var expiredKeys = await _context.KeyPairs
-            .Where(k => k.LastActivityAt < cutoff && k.UserId == null)
+            .Where(k => k.LastActivityAt < cutoff && (k.UserId == null || k.IsActive == false))
             .ToListAsync();
 
         if (expiredKeys.Count == 0)
@@ -107,7 +107,7 @@ public class KeyService : IKeyService
         
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Deleted {KeyCount} expired anonymous keys and {PointCount} associated route points", 
+        _logger.LogInformation("Deleted {KeyCount} expired/inactive keys and {PointCount} associated route points", 
             expiredKeys.Count, routePointsToDelete.Count);
 
         return expiredKeys.Count;
@@ -164,7 +164,7 @@ public class KeyService : IKeyService
         return AddKeyPairResult.Succeeded(keyPair);
     }
 
-    public async Task<bool> RemoveKeyPairFromUserAsync(Guid userId, Guid keyPairId)
+    public async Task<bool> DeactivateKeyPairAsync(Guid userId, Guid keyPairId)
     {
         var keyPair = await _context.KeyPairs
             .FirstOrDefaultAsync(k => k.Id == keyPairId && k.UserId == userId);
@@ -174,12 +174,12 @@ public class KeyService : IKeyService
             return false;
         }
 
-        // Remove user association (makes it anonymous again)
-        keyPair.UserId = null;
+        // Deactivate the key pair (keeps user association, will be deleted after 24h by cleanup)
+        keyPair.IsActive = false;
         keyPair.LastActivityAt = DateTime.UtcNow; // Reset expiration timer
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Key pair {KeyPairId} removed from user {UserId} (now anonymous)", keyPairId, userId);
+        _logger.LogInformation("Key pair {KeyPairId} deactivated for user {UserId} (will be deleted after 24h)", keyPairId, userId);
 
         return true;
     }

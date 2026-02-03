@@ -1,5 +1,7 @@
 .privacy-page {
   min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   background: #1a1a1a;
   color: #e0e0e0;
   padding: 20px;

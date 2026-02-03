@@ -32,7 +32,7 @@ public interface IKeyService
     
     /// <summary>
     /// Delete expired keys (inactive for more than 24h).
-    /// Only deletes anonymous keys (UserId == null).
+    /// Deletes anonymous keys (UserId == null) and deactivated keys (IsActive == false).
     /// </summary>
     Task<int> DeleteExpiredKeysAsync(int expirationHours = 24);
     
@@ -48,9 +48,10 @@ public interface IKeyService
     Task<AddKeyPairResult> AddExistingKeyPairToUserAsync(Guid userId, string pushKey, string viewKey);
     
     /// <summary>
-    /// Remove a key pair from a user's account (makes it anonymous again).
+    /// Deactivate a key pair. The key remains linked to the user but becomes inactive.
+    /// It will be permanently deleted after 24h by the cleanup service.
     /// </summary>
-    Task<bool> RemoveKeyPairFromUserAsync(Guid userId, Guid keyPairId);
+    Task<bool> DeactivateKeyPairAsync(Guid userId, Guid keyPairId);
     
     /// <summary>
     /// Get a key pair by its ID

@@ -87,8 +87,8 @@ export default function AccountPage() {
     }
   }
 
-  async function handleRemoveKey(keyId: string) {
-    if (!confirm('Are you sure you want to remove this key pair?')) return;
+  async function handleDeactivateKey(keyId: string) {
+    if (!confirm('Are you sure you want to deactivate this key? It will be permanently deleted after 24 hours.')) return;
     
     const success = await removeKeyPair(keyId);
     if (success) {
@@ -344,11 +344,11 @@ export default function AccountPage() {
                       Reset Routes
                     </button>
                     <button 
-                      className="remove-key-btn"
-                      onClick={() => handleRemoveKey(key.id)}
-                      title="Remove key pair"
+                      className="deactivate-key-btn"
+                      onClick={() => handleDeactivateKey(key.id)}
+                      title="Deactivate key pair (will be deleted after 24h)"
                     >
-                      Remove
+                      Deactivate
                     </button>
                   </div>
                 </div>
