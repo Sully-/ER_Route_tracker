@@ -200,12 +200,16 @@ function App() {
     viewKeys,
     routes: realtimeRoutes,
     connectionStatus,
+    hubState,
     addViewKey,
     removeViewKey,
     error: realtimeError,
   } = useRealtimeRoutes();
 
-  // Auto-add viewkeys from URL on mount (only once, after SignalR is ready)
+  // Track if we've started adding URL viewkeys (to avoid adding them multiple times)
+  const urlViewKeysAddedRef = useRef(false);
+  
+  // Auto-add viewkeys from URL on mount (only once, when SignalR is connected)
   useEffect(() => {
     if (urlViewKeysProcessed) return;
     if (initialViewKeys.length === 0) {
@@ -213,8 +217,12 @@ function App() {
       return;
     }
     
-    // Small delay to ensure SignalR connection is established
-    const timer = setTimeout(() => {
+    // Wait for SignalR to be connected before adding viewkeys
+    if (hubState !== 'Connected') return;
+    
+    // Only add viewkeys once (addViewKey is async, so we track separately)
+    if (!urlViewKeysAddedRef.current) {
+      urlViewKeysAddedRef.current = true;
       console.log('Adding viewkeys from URL:', initialViewKeysWithNames);
       initialViewKeysWithNames.forEach(({ viewKey, name }) => {
         addViewKey(viewKey);
@@ -222,11 +230,15 @@ function App() {
           setViewKeyNames(prev => ({ ...prev, [viewKey]: name }));
         }
       });
-      setUrlViewKeysProcessed(true);
-    }, 500);
+    }
     
-    return () => clearTimeout(timer);
-  }, [urlViewKeysProcessed, addViewKey]);
+    // Only mark as processed when all viewkeys have been added to the viewKeys array
+    const allViewKeysAdded = initialViewKeys.every(key => viewKeys.includes(key));
+    if (allViewKeysAdded) {
+      console.log('All URL viewkeys have been added, marking as processed');
+      setUrlViewKeysProcessed(true);
+    }
+  }, [urlViewKeysProcessed, hubState, addViewKey, viewKeys]);
 
   // Update URL when viewkeys or their names change (sync URL with current state)
   useEffect(() => {
@@ -237,7 +249,10 @@ function App() {
   }, [viewKeys, viewKeyNames, urlViewKeysProcessed]);
   
   // Update viewKey names when viewKeys change (remove names for removed keys)
+  // Only run after URL viewkeys have been processed to avoid removing names prematurely
   useEffect(() => {
+    if (!urlViewKeysProcessed) return;
+    
     setViewKeyNames(prev => {
       const updated = { ...prev };
       let changed = false;
@@ -249,7 +264,7 @@ function App() {
       });
       return changed ? updated : prev;
     });
-  }, [viewKeys]);
+  }, [viewKeys, urlViewKeysProcessed]);
 
   // Auto-untrack if the tracked route is removed
   useEffect(() => {

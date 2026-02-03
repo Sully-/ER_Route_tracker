@@ -21,10 +21,14 @@ interface RoutePointBroadcast {
   receivedAt: string;
 }
 
+// Hub connection state type (mirrors signalR.HubConnectionState)
+export type HubState = 'Disconnected' | 'Connecting' | 'Connected' | 'Disconnecting' | 'Reconnecting';
+
 interface UseRealtimeRoutesResult {
   viewKeys: string[];
   routes: Record<string, Route>;
   connectionStatus: Record<string, ConnectionStatus>;
+  hubState: HubState;
   addViewKey: (viewKey: string) => void;
   removeViewKey: (viewKey: string) => void;
   error: string | null;
@@ -87,6 +91,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
   const [viewKeys, setViewKeys] = useState<string[]>([]);
   const [routes, setRoutes] = useState<Record<string, Route>>({});
   const [connectionStatus, setConnectionStatus] = useState<Record<string, ConnectionStatus>>({});
+  const [hubState, setHubState] = useState<HubState>('Disconnected');
   const [error, setError] = useState<string | null>(null);
   // Track last received timestamp for each viewKey to detect inactivity
   const [lastReceivedTimestamps, setLastReceivedTimestamps] = useState<Record<string, number>>({});
@@ -257,6 +262,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
 
     // Connection state handlers
     connection.onreconnecting(() => {
+      setHubState('Reconnecting');
       setViewKeys(keys => {
         keys.forEach(key => {
           setConnectionStatus(prev => ({
@@ -269,6 +275,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
     });
 
     connection.onreconnected(() => {
+      setHubState('Connected');
       // Rejoin all routes after reconnection
       viewKeys.forEach(key => {
         connection.invoke('JoinRoute', key).catch(err => {
@@ -282,6 +289,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
     });
 
     connection.onclose(() => {
+      setHubState('Disconnected');
       setViewKeys(keys => {
         keys.forEach(key => {
           setConnectionStatus(prev => ({
@@ -296,9 +304,11 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
     connectionRef.current = connection;
 
     // Start connection
+    setHubState('Connecting');
     connection.start()
       .then(() => {
         console.log('SignalR connected successfully to', `${BACKEND_URL}/hubs/route`);
+        setHubState('Connected');
         setError(null);
       })
       .catch(err => {
@@ -309,6 +319,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
           stack: err.stack,
           name: err.name,
         });
+        setHubState('Disconnected');
         setError(`Failed to connect to real-time server: ${err.message}`);
       });
 
@@ -435,6 +446,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
     viewKeys,
     routes,
     connectionStatus,
+    hubState,
     addViewKey,
     removeViewKey,
     error,
