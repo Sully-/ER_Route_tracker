@@ -1,7 +1,7 @@
 // Route Tracker - Main tracking logic
 
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use hudhook::tracing::{info, warn};
 use libeldenring::prelude::*;
@@ -22,7 +22,9 @@ pub struct RouteTracker {
     pub(crate) route: Vec<RoutePoint>,
     pub(crate) is_recording: bool,
     pub(crate) is_streaming: bool,
-    pub(crate) start_time: Option<Instant>,
+    /// Start time of current recording session (for UI duration display)
+    pub(crate) recording_start_time: Option<Instant>,
+    /// Start time of current streaming session (for UI duration display)
     pub(crate) stream_start_time: Option<Instant>,
     pub(crate) last_record_time: Instant,
     pub(crate) last_stream_time: Instant,
@@ -128,7 +130,7 @@ impl RouteTracker {
             route: Vec::new(),
             is_recording: false,
             is_streaming: false,
-            start_time: None,
+            recording_start_time: None,
             stream_start_time: None,
             last_record_time: Instant::now(),
             last_stream_time: Instant::now(),
@@ -145,9 +147,7 @@ impl RouteTracker {
     /// Start recording
     pub fn start_recording(&mut self) {
         self.route.clear();
-        self.start_time = Some(Instant::now());
-        // Reset stream start time when starting to record to use recording time
-        self.stream_start_time = None;
+        self.recording_start_time = Some(Instant::now());
         self.is_recording = true;
         info!("Recording started!");
     }
@@ -185,8 +185,10 @@ impl RouteTracker {
             self.pointers.global_position.read(),
             self.pointers.global_position.read_map_id(),
         ) {
-            let timestamp_ms = self.start_time
-                .map(|t| t.elapsed().as_millis() as u64)
+            // Use absolute Unix timestamp (milliseconds since epoch)
+            let timestamp_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
                 .unwrap_or(0);
             
             // Convert to global coordinates and get the global map ID
@@ -241,23 +243,16 @@ impl RouteTracker {
             return;
         }
         
-        // Initialize stream start time on first stream if not recording
-        if self.stream_start_time.is_none() && !self.is_recording {
-            self.stream_start_time = Some(Instant::now());
-        }
-        
         if let (Some([x, y, z, _, _]), Some(map_id)) = (
             self.pointers.global_position.read(),
             self.pointers.global_position.read_map_id(),
         ) {
-            // Use recording start time if recording, otherwise use stream start time
-            let timestamp_ms = if let Some(start) = self.start_time {
-                start.elapsed().as_millis() as u64
-            } else if let Some(stream_start) = self.stream_start_time {
-                stream_start.elapsed().as_millis() as u64
-            } else {
-                0
-            };
+            // Use absolute Unix timestamp (milliseconds since epoch)
+            // This ensures timestamps are always increasing across game restarts
+            let timestamp_ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
             
             // Convert to global coordinates and get the global map ID
             let (global_x, global_y, global_z, global_map_id) = self.transformer

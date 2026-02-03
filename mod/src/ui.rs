@@ -125,7 +125,7 @@ impl RouteTracker {
             ui.text_colored([0.0, 1.0, 0.0, 1.0], "● RECORDING");
             ui.text(format!("Points: {}", self.route.len()));
             
-            if let Some(start) = self.start_time {
+            if let Some(start) = self.recording_start_time {
                 let elapsed = start.elapsed();
                 let secs = elapsed.as_secs();
                 let mins = secs / 60;
