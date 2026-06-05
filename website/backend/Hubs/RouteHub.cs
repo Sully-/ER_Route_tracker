@@ -8,15 +8,18 @@ public class RouteHub : Hub
 {
     private readonly IKeyService _keyService;
     private readonly IRouteService _routeService;
+    private readonly IBossService _bossService;
     private readonly ILogger<RouteHub> _logger;
 
     public RouteHub(
         IKeyService keyService, 
         IRouteService routeService,
+        IBossService bossService,
         ILogger<RouteHub> logger)
     {
         _keyService = keyService;
         _routeService = routeService;
+        _bossService = bossService;
         _logger = logger;
     }
 
@@ -52,6 +55,17 @@ public class RouteHub : Hub
         else
         {
             _logger.LogInformation("No historical points to send for viewKey {ViewKey}", viewKey);
+        }
+
+        var existingKills = await _bossService.GetBossKillsAsync(viewKey);
+        if (existingKills.Any())
+        {
+            await Clients.Caller.SendAsync("ReceiveBossKillHistory", viewKey, existingKills);
+            _logger.LogInformation(
+                "Sent {Count} historical boss kills to client {ConnectionId} for viewKey {ViewKey}",
+                existingKills.Count(),
+                Context.ConnectionId,
+                viewKey);
         }
 
         await Clients.Caller.SendAsync("JoinedRoute", viewKey);

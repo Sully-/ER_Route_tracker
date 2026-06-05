@@ -9,6 +9,7 @@ fn main() {
     // Tell Cargo to rerun this script if these files change
     println!("cargo:rerun-if-changed=route_tracker_config.toml");
     println!("cargo:rerun-if-changed=src/WorldMapLegacyConvParam.csv");
+    println!("cargo:rerun-if-changed=assets/data");
 
     // Get the output directory from Cargo
     let out_dir = env::var("OUT_DIR").unwrap();
@@ -51,5 +52,27 @@ fn main() {
     } else {
         println!("cargo:warning=CSV file not found: src/WorldMapLegacyConvParam.csv");
     }
+
+    copy_dir_all(Path::new("assets/data"), &target_dir.join("data"));
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) {
+    if !src.exists() {
+        println!("cargo:warning=Boss data directory not found: {}", src.display());
+        return;
+    }
+
+    fs::create_dir_all(dst).expect("Failed to create data output directory");
+    for entry in fs::read_dir(src).expect("Failed to read assets/data") {
+        let entry = entry.expect("Failed to read directory entry");
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+        if src_path.is_dir() {
+            copy_dir_all(&src_path, &dst_path);
+        } else {
+            fs::copy(&src_path, &dst_path).expect("Failed to copy boss data file");
+        }
+    }
+    println!("cargo:warning=Copied boss data to {}", dst.display());
 }
 

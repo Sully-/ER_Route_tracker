@@ -20,6 +20,9 @@ impl ImguiRenderLoop for RouteTracker {
         
         // Stream position to backend if real-time mode is enabled (independent of recording)
         self.stream_position();
+
+        // Poll boss kill flags
+        self.poll_boss_kills();
         
         // NOTE: Hudhook crashes if render() doesn't draw anything.
         // We must always call window().build() even when hidden.
@@ -46,6 +49,7 @@ impl ImguiRenderLoop for RouteTracker {
                 self.render_recording_section(ui);
                 ui.separator();
                 self.render_streaming_section(ui);
+                self.render_bosses_section(ui);
                 self.render_status_message(ui);
                 ui.separator();
                 self.render_keybindings_section(ui);
@@ -198,6 +202,27 @@ impl RouteTracker {
         }
     }
     
+    /// Render boss kill tracking section
+    fn render_bosses_section(&self, ui: &hudhook::imgui::Ui) {
+        ui.text("=== Bosses ===");
+
+        let Some(ref tracker) = self.bosses_tracker else {
+            ui.text_disabled("Tracking disabled");
+            return;
+        };
+
+        ui.text(format!(
+            "Killed: {} / {}",
+            tracker.total_killed, tracker.total_bosses
+        ));
+
+        if self.is_streaming {
+            ui.text_colored([0.0, 1.0, 0.0, 1.0], "Streaming kills");
+        } else {
+            ui.text_disabled("Start streaming to send kills");
+        }
+    }
+
     /// Render status message if any
     fn render_status_message(&self, ui: &hudhook::imgui::Ui) {
         if let Some(status) = self.get_status() {

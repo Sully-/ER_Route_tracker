@@ -272,6 +272,30 @@ This script:
 - Maps AreaNo to display map (m60/m61/m62)
 - Outputs `viewer/public/map_data_processed.json`
 
+## Boss Markers
+
+The viewer can display boss locations from `enemies_processed.json` (toggle **Bosses ON/OFF** in the side panel, independent of POI icons).
+
+### Boss Data
+
+- **Source**: `public/enemies.csv` (boss spawn positions with local coordinates)
+- **Processed output**: `public/enemies_processed.json`
+- **Icon**: `public/map_icons/icon_11.png`
+- **Filtering**: Same map rules as POI icons (`mapId` for m60/m61, `areaNo === 12` for m62)
+
+### Regenerating Boss Data
+
+```bash
+# From mod/ directory
+cargo run --bin convert-enemies
+```
+
+This script:
+- Reads `website/frontend/public/enemies.csv`
+- Converts local coordinates to global using `WorldPositionTransformer`
+- Deduplicates by `flag_id` (duplicate entries)
+- Outputs `website/frontend/public/enemies_processed.json`
+
 ## Route JSON Format
 
 The viewer expects JSON files with this structure:

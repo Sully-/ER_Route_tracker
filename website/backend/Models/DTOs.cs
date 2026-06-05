@@ -43,3 +43,20 @@ public record RoutePointBroadcast(
     DateTime ReceivedAt
 );
 
+/// <summary>
+/// Request DTO for submitting boss kills
+/// </summary>
+public record BossKillRequest(
+    uint FlagId,
+    ulong TimestampMs
+);
+
+/// <summary>
+/// DTO for broadcasting boss kills via SignalR
+/// </summary>
+public record BossKillBroadcast(
+    uint FlagId,
+    ulong TimestampMs,
+    DateTime ReceivedAt
+);
+

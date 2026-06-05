@@ -103,6 +103,12 @@ public class KeyService : IKeyService
             .ToListAsync();
 
         _context.RoutePoints.RemoveRange(routePointsToDelete);
+
+        var bossKillsToDelete = await _context.BossKills
+            .Where(bk => expiredPushKeys.Contains(bk.PushKey))
+            .ToListAsync();
+        _context.BossKills.RemoveRange(bossKillsToDelete);
+
         _context.KeyPairs.RemoveRange(expiredKeys);
         
         await _context.SaveChangesAsync();

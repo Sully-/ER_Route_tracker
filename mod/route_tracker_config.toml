@@ -76,3 +76,13 @@ backend_url = "https://er-route-tracker.sulli.tech/"
 # Get one by calling POST /api/keys/generate on your backend
 # Leave empty to disable real-time streaming even if enabled = true
 push_key = ""
+
+[bosses]
+# Enable boss kill tracking via event flags
+enabled = true
+
+# Language folder under data/ (engus, frafr, etc.)
+language = "engus"
+
+# How often to poll boss kill flags (milliseconds)
+poll_interval_ms = 500

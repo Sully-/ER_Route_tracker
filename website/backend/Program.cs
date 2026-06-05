@@ -58,6 +58,7 @@ builder.Services.AddSignalR();
 // Register services
 builder.Services.AddScoped<IKeyService, KeyService>();
 builder.Services.AddScoped<IRouteService, RouteService>();
+builder.Services.AddScoped<IBossService, BossService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
@@ -65,15 +66,22 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddHostedService<KeyCleanupService>();
 
 // Configure session for OAuth linking flow
+var isDevelopment = builder.Environment.IsDevelopment();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(10);
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
-    options.Cookie.SameSite = SameSiteMode.None;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = isDevelopment ? SameSiteMode.Lax : SameSiteMode.None;
+    options.Cookie.SecurePolicy = isDevelopment ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 });
+
+static void ConfigureOAuthCookies(Microsoft.AspNetCore.Authentication.RemoteAuthenticationOptions options, bool development)
+{
+    options.CorrelationCookie.SecurePolicy = development ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.CorrelationCookie.SameSite = development ? SameSiteMode.Lax : SameSiteMode.None;
+}
 
 // =============================================================================
 // Authentication Configuration
@@ -153,6 +161,7 @@ if (!string.IsNullOrEmpty(discordClientId) && !string.IsNullOrEmpty(discordClien
         options.Scope.Add("identify");
         options.Scope.Add("email");
         options.SaveTokens = true;
+        ConfigureOAuthCookies(options, isDevelopment);
     });
 }
 
@@ -165,6 +174,7 @@ if (!string.IsNullOrEmpty(twitchClientId) && !string.IsNullOrEmpty(twitchClientS
         options.CallbackPath = "/signin-twitch";
         options.Scope.Add("user:read:email");
         options.SaveTokens = true;
+        ConfigureOAuthCookies(options, isDevelopment);
     });
 }
 
@@ -176,6 +186,7 @@ if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientS
         options.ClientSecret = googleClientSecret;
         options.CallbackPath = "/signin-google";
         options.SaveTokens = true;
+        ConfigureOAuthCookies(options, isDevelopment);
     });
 }
 
@@ -197,6 +208,7 @@ if (!string.IsNullOrEmpty(microsoftClientId) && !string.IsNullOrEmpty(microsoftC
         {
             ValidateIssuer = false // Allow any tenant
         };
+        ConfigureOAuthCookies(options, isDevelopment);
     });
 }
 
@@ -206,6 +218,7 @@ if (!string.IsNullOrEmpty(steamApiKey))
     {
         options.ApplicationKey = steamApiKey;
         options.CallbackPath = "/signin-steam";
+        ConfigureOAuthCookies(options, isDevelopment);
     });
 }
 

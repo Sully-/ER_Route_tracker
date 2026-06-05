@@ -4,7 +4,7 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fs;
 use std::path::PathBuf;
-use windows::Win32::Foundation::HINSTANCE;
+use windows::Win32::Foundation::{HINSTANCE, HMODULE};
 use windows::Win32::System::LibraryLoader::GetModuleFileNameW;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 
@@ -366,6 +366,42 @@ impl Default for RealtimeSettings {
     }
 }
 
+/// Boss kill tracking settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BossSettings {
+    /// Enable boss kill tracking
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Language folder under data/ (e.g. "engus", "frafr")
+    #[serde(default = "default_boss_language")]
+    pub language: String,
+    /// Poll interval for boss flags in milliseconds
+    #[serde(default = "default_boss_poll_ms")]
+    pub poll_interval_ms: u64,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_boss_language() -> String {
+    "engus".to_string()
+}
+
+fn default_boss_poll_ms() -> u64 {
+    500
+}
+
+impl Default for BossSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            language: default_boss_language(),
+            poll_interval_ms: default_boss_poll_ms(),
+        }
+    }
+}
+
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -378,6 +414,9 @@ pub struct Config {
     /// Real-time streaming settings
     #[serde(default)]
     pub realtime: RealtimeSettings,
+    /// Boss kill tracking settings
+    #[serde(default)]
+    pub bosses: BossSettings,
 }
 
 impl Default for Config {
@@ -387,6 +426,7 @@ impl Default for Config {
             recording: RecordingSettings::default(),
             output: OutputSettings::default(),
             realtime: RealtimeSettings::default(),
+            bosses: BossSettings::default(),
         }
     }
 }
@@ -428,7 +468,7 @@ impl Config {
     /// Get the DLL's directory path using its HMODULE
     pub fn get_dll_directory(hmodule: HINSTANCE) -> Option<PathBuf> {
         let mut buffer = [0u16; 260]; // MAX_PATH
-        let len = unsafe { GetModuleFileNameW(hmodule, &mut buffer) } as usize;
+        let len = unsafe { GetModuleFileNameW(Some(HMODULE(hmodule.0)), &mut buffer) } as usize;
         
         if len == 0 || len >= buffer.len() {
             return None;

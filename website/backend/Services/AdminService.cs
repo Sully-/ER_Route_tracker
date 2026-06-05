@@ -198,6 +198,12 @@ public class AdminService : IAdminService
                 .ToListAsync();
             _context.RoutePoints.RemoveRange(routePoints);
             _logger.LogInformation("Deleting {Count} route points for user {UserId}", routePoints.Count, userId);
+
+            var bossKills = await _context.BossKills
+                .Where(bk => pushKeys.Contains(bk.PushKey))
+                .ToListAsync();
+            _context.BossKills.RemoveRange(bossKills);
+            _logger.LogInformation("Deleting {Count} boss kills for user {UserId}", bossKills.Count, userId);
         }
 
         // Delete key pairs
@@ -234,6 +240,12 @@ public class AdminService : IAdminService
             .ToListAsync();
         _context.RoutePoints.RemoveRange(routePoints);
         _logger.LogInformation("Deleting {Count} route points for route {PushKey}", routePoints.Count, pushKey);
+
+        var bossKills = await _context.BossKills
+            .Where(bk => bk.PushKey == pushKey)
+            .ToListAsync();
+        _context.BossKills.RemoveRange(bossKills);
+        _logger.LogInformation("Deleting {Count} boss kills for route {PushKey}", bossKills.Count, pushKey);
 
         // Delete key pair
         _context.KeyPairs.Remove(keyPair);

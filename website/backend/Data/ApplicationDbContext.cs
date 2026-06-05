@@ -14,6 +14,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<LinkedProvider> LinkedProviders => Set<LinkedProvider>();
     public DbSet<KeyPair> KeyPairs => Set<KeyPair>();
     public DbSet<RoutePoint> RoutePoints => Set<RoutePoint>();
+    public DbSet<BossKill> BossKills => Set<BossKill>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -81,6 +82,23 @@ public class ApplicationDbContext : DbContext
             // Configure relationship
             entity.HasOne(e => e.KeyPair)
                   .WithMany(k => k.RoutePoints)
+                  .HasForeignKey(e => e.PushKey)
+                  .HasPrincipalKey(k => k.PushKey)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BossKill>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                  .ValueGeneratedOnAdd();
+
+            entity.HasIndex(e => e.PushKey);
+            entity.HasIndex(e => new { e.PushKey, e.FlagId }).IsUnique();
+
+            entity.HasOne(e => e.KeyPair)
+                  .WithMany()
                   .HasForeignKey(e => e.PushKey)
                   .HasPrincipalKey(k => k.PushKey)
                   .OnDelete(DeleteBehavior.Cascade);

@@ -3,6 +3,7 @@ import { ConnectionStatus } from '../../hooks/useRealtimeRoutes';
 import { MAP_CONFIGS } from '../../utils/calibration';
 import { detectMapTransitions } from '../../utils/routeAnalysis';
 import { useMapIcons } from '../../hooks/useMapIcons';
+import { useBossIcons } from '../../hooks/useBossIcons';
 import { Route } from '../../types/route';
 import { User, KeyPairInfo, OAuthProvider, OAUTH_PROVIDERS, PROVIDER_ICONS } from '../../types/auth';
 import ColorPicker from '../ColorPicker/ColorPicker';
@@ -19,6 +20,9 @@ interface SidePanelProps {
   onMapChange: (mapId: string) => void;
   showIcons: boolean;
   onToggleIcons: (show: boolean) => void;
+  showBosses: boolean;
+  onToggleBosses: (show: boolean) => void;
+  killedBossFlagIds?: Set<number>;
   viewKeys: string[];
   viewKeyNames: Record<string, string>;
   connectionStatus: Record<string, ConnectionStatus>;
@@ -77,6 +81,9 @@ function SidePanel({
   onMapChange,
   showIcons,
   onToggleIcons,
+  showBosses,
+  onToggleBosses,
+  killedBossFlagIds,
   viewKeys,
   viewKeyNames,
   connectionStatus,
@@ -122,8 +129,9 @@ function SidePanel({
   const nameInputRef = useRef<HTMLInputElement>(null);
   const staticRouteNameInputRef = useRef<HTMLInputElement>(null);
 
-  // Load map icons
+  // Load map icons and bosses
   const { icons, isLoading: iconsLoading } = useMapIcons({ mapId: activeMapId });
+  const { bosses, isLoading: bossesLoading } = useBossIcons({ mapId: activeMapId });
 
   // Detect transitions in first static route (if any)
   const firstStaticRoute = staticRouteIds.length > 0 ? staticRoutes[staticRouteIds[0]] : null;
@@ -518,6 +526,26 @@ function SidePanel({
             </span>
           )}
           {iconsLoading && (
+            <span className="icon-count">
+              Loading...
+            </span>
+          )}
+        </div>
+        <div className="icon-toggle-container">
+          <button
+            onClick={() => onToggleBosses(!showBosses)}
+            className={`icon-toggle-btn ${showBosses ? 'active' : ''}`}
+          >
+            {showBosses ? '💀 Bosses ON' : '💀 Bosses OFF'}
+          </button>
+          {showBosses && !bossesLoading && (
+            <span className="icon-count">
+              {killedBossFlagIds && killedBossFlagIds.size > 0
+                ? `${killedBossFlagIds.size} killed / ${bosses.length} on map`
+                : `${bosses.length} bosses`}
+            </span>
+          )}
+          {bossesLoading && (
             <span className="icon-count">
               Loading...
             </span>

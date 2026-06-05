@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import MapContainer, { MapContainerHandle } from './components/Map/MapContainer';
 import RouteInfo from './components/RouteInfo/RouteInfo';
 import SidePanel from './components/SidePanel/SidePanel';
@@ -135,6 +135,7 @@ function App() {
   
   const [activeMapId, setActiveMapId] = useState<string>(DEFAULT_MAP_ID);
   const [showIcons, setShowIcons] = useState<boolean>(true);
+  const [showBosses, setShowBosses] = useState<boolean>(false);
   const [urlViewKeysProcessed, setUrlViewKeysProcessed] = useState(false);
   
   // ViewKey names mapping (viewKey -> name)
@@ -201,10 +202,28 @@ function App() {
     routes: realtimeRoutes,
     connectionStatus,
     hubState,
+    killedBossFlagIds,
     addViewKey,
     removeViewKey,
     error: realtimeError,
   } = useRealtimeRoutes();
+
+  const trackedKilledBossIds = useMemo(() => {
+    if (trackedViewKey) {
+      return new Set(killedBossFlagIds[trackedViewKey] ?? []);
+    }
+
+    // After refresh, tracking is not restored — still show kills for active routes
+    if (viewKeys.length === 1) {
+      return new Set(killedBossFlagIds[viewKeys[0]] ?? []);
+    }
+
+    const merged = new Set<number>();
+    viewKeys.forEach((key) => {
+      (killedBossFlagIds[key] ?? []).forEach((id) => merged.add(id));
+    });
+    return merged.size > 0 ? merged : undefined;
+  }, [trackedViewKey, viewKeys, killedBossFlagIds]);
 
   // Track if we've started adding URL viewkeys (to avoid adding them multiple times)
   const urlViewKeysAddedRef = useRef(false);
@@ -351,6 +370,9 @@ function App() {
         onMapChange={setActiveMapId}
         showIcons={showIcons}
         onToggleIcons={setShowIcons}
+        showBosses={showBosses}
+        onToggleBosses={setShowBosses}
+        killedBossFlagIds={trackedKilledBossIds}
         viewKeys={viewKeys}
         viewKeyNames={viewKeyNames}
         connectionStatus={connectionStatus}
@@ -397,6 +419,8 @@ function App() {
         activeMapId={activeMapId}
         onMapChange={setActiveMapId}
         showIcons={showIcons}
+        showBosses={showBosses}
+        killedBossFlagIds={trackedKilledBossIds}
         routeColors={routeColors}
         routeVisibility={routeVisibility}
         trackedViewKey={trackedViewKey}

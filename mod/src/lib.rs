@@ -22,8 +22,10 @@
 // MODULES
 // =============================================================================
 
+mod bosses;
 mod config;
 pub mod coordinate_transformer;
+mod event_flags;
 mod realtime_client;
 mod route;
 mod tracker;
@@ -75,7 +77,9 @@ pub unsafe extern "system" fn DllMain(hmodule: HINSTANCE, reason: u32, _: *mut c
             return false;
         }
         
+        let hmodule_addr = hmodule.0 as usize;
         std::thread::spawn(move || {
+            let hmodule = HINSTANCE(hmodule_addr as *mut c_void);
             start_mod(hmodule);
         });
     }

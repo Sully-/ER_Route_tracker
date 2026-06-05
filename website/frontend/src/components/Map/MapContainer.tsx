@@ -25,7 +25,9 @@ import {
   Jump,
 } from '../../utils/routeAnalysis';
 import { useMapIcons } from '../../hooks/useMapIcons';
+import { useBossIcons } from '../../hooks/useBossIcons';
 import { MapIcon, getIconPrimaryText } from '../../types/mapIcons';
+import { Boss } from '../../types/bosses';
 
 export interface MapContainerHandle {
   focusRoute: () => void;
@@ -42,6 +44,8 @@ interface MapContainerProps {
   activeMapId?: string;
   onMapChange?: (mapId: string) => void;
   showIcons?: boolean;
+  showBosses?: boolean;
+  killedBossFlagIds?: Set<number>;
   routeColors?: Record<string, string>;
   routeVisibility?: Record<string, boolean>;
   // Active tracking - auto-focus on a specific realtime route
@@ -78,7 +82,7 @@ function getColorForViewKey(
 }
 
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
-  ({ staticRoutes = {}, staticRouteIds = [], staticRouteNames = {}, realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, routeColors, routeVisibility = {}, trackedViewKey, selectedRouteId, onSelectRoute }, ref) => {
+  ({ staticRoutes = {}, staticRouteIds = [], staticRouteNames = {}, realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, showBosses: propShowBosses, killedBossFlagIds, routeColors, routeVisibility = {}, trackedViewKey, selectedRouteId, onSelectRoute }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
@@ -91,13 +95,17 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     const segmentPolylinesRef = useRef<L.Polyline[]>([]);
     const iconMarkersRef = useRef<L.Marker[]>([]);
     const iconLayerGroupRef = useRef<L.LayerGroup | null>(null);
+    const bossMarkersRef = useRef<L.Marker[]>([]);
+    const bossLayerGroupRef = useRef<L.LayerGroup | null>(null);
 
     // Use props if provided, otherwise use local state
     const [internalActiveMapId, setInternalActiveMapId] = useState<string>(DEFAULT_MAP_ID);
     const [internalShowIcons, _setInternalShowIcons] = useState<boolean>(true);
+    const [internalShowBosses, _setInternalShowBosses] = useState<boolean>(false);
     
     const activeMapId = propActiveMapId !== undefined ? propActiveMapId : internalActiveMapId;
     const showIcons = propShowIcons !== undefined ? propShowIcons : internalShowIcons;
+    const showBosses = propShowBosses !== undefined ? propShowBosses : internalShowBosses;
     
     const [pendingZoomTarget, setPendingZoomTarget] = useState<{ x: number; z: number } | null>(null);
 
@@ -112,6 +120,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
     // Load map icons
     const { icons, isLoading: iconsLoading } = useMapIcons({ mapId: activeMapId });
+    const { bosses, isLoading: bossesLoading } = useBossIcons({ mapId: activeMapId });
 
     // Get current map config
     const getActiveConfig = useCallback((): MapConfig => {
@@ -187,6 +196,18 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       iconMarkersRef.current = [];
     }, []);
 
+    // Clear all boss markers
+    const clearBossMarkers = useCallback(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (bossLayerGroupRef.current) {
+        map.removeLayer(bossLayerGroupRef.current);
+        bossLayerGroupRef.current = null;
+      }
+      bossMarkersRef.current = [];
+    }, []);
+
     // Cache for Leaflet icons
     const iconCache = useMemo(() => new Map<number, L.DivIcon>(), []);
 
@@ -211,6 +232,37 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       [iconCache]
     );
 
+    const bossLeafletIcon = useMemo(
+      (): L.DivIcon =>
+        L.divIcon({
+          className: 'map-icon-container',
+          html: `<img src="./map_icons/boss_icon.png" style="max-width: 48px; max-height: 48px; object-fit: contain; display: block;">`,
+          iconSize: [48, 48],
+          iconAnchor: [24, 24],
+          popupAnchor: [0, -24],
+        }),
+      []
+    );
+
+    const getBossLeafletIcon = useCallback(
+      (isKilled: boolean): L.DivIcon => {
+        if (!isKilled) return bossLeafletIcon;
+        return L.divIcon({
+          className: 'map-icon-container boss-killed',
+          html: `<div style="position: relative; width: 48px; height: 48px;">
+            <img src="./map_icons/boss_icon.png" style="max-width: 48px; max-height: 48px; object-fit: contain; display: block;">
+            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none;">
+              <span style="color: #e53935; font-size: 30px; font-weight: bold; line-height: 1; text-shadow: 0 0 4px #000, 0 0 4px #000, 1px 1px 0 #000, -1px -1px 0 #000;">✕</span>
+            </div>
+          </div>`,
+          iconSize: [48, 48],
+          iconAnchor: [24, 24],
+          popupAnchor: [0, -24],
+        });
+      },
+      [bossLeafletIcon]
+    );
+
     // Create popup content for an icon
     const createIconPopup = useCallback((icon: MapIcon): string => {
       const primaryText = getIconPrimaryText(icon);
@@ -225,6 +277,31 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
           ${secondaryTexts ? `<div style="margin-top: 4px; font-size: 12px;">${secondaryTexts}</div>` : ''}
           <div style="margin-top: 6px; font-size: 10px; color: #888;">
             (${icon.globalX.toFixed(1)}, ${icon.globalZ.toFixed(1)})
+          </div>
+        </div>
+      `;
+    }, []);
+
+    // Create popup content for a boss
+    const createBossPopup = useCallback((boss: Boss, isKilled: boolean): string => {
+      const placeLine = boss.place
+        ? `<div style="margin-top: 4px; font-size: 12px; color: #ccc;">${boss.place}</div>`
+        : '';
+      const regionLine = boss.regionName
+        ? `<div style="font-size: 11px; color: #aaa;">${boss.regionName}</div>`
+        : '';
+      const killedLine = isKilled
+        ? `<div style="margin-top: 6px; font-size: 12px; color: #e53935; font-weight: bold;">✕ Defeated</div>`
+        : '';
+
+      return `
+        <div style="text-align: center; min-width: 140px;">
+          <b style="font-size: 14px;">${boss.bossName}</b>
+          ${placeLine}
+          ${regionLine}
+          ${killedLine}
+          <div style="margin-top: 6px; font-size: 10px; color: #888;">
+            (${boss.globalX.toFixed(1)}, ${boss.globalZ.toFixed(1)})
           </div>
         </div>
       `;
@@ -996,6 +1073,60 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
       getLeafletIcon,
       createIconPopup,
       clearIconMarkers,
+    ]);
+
+    // Draw boss markers when bosses or active map changes
+    useEffect(() => {
+      const map = mapRef.current;
+      if (!map) return;
+
+      clearBossMarkers();
+
+      if (!showBosses || bossesLoading || bosses.length === 0) {
+        return;
+      }
+
+      const config = getActiveConfig();
+      bossLayerGroupRef.current = L.layerGroup();
+
+      bosses.forEach((boss) => {
+        try {
+          const pixel = gameToPixelForMap(boss.globalX, boss.globalZ, config);
+          const latLng = pixelToLatLng(pixel.x, pixel.y, config);
+          const isKilled = killedBossFlagIds?.has(boss.id) ?? false;
+
+          const marker = L.marker(latLng, {
+            icon: getBossLeafletIcon(isKilled),
+            pane: 'mapIconsPane',
+          });
+
+          marker.bindPopup(createBossPopup(boss, isKilled));
+
+          bossMarkersRef.current.push(marker);
+          bossLayerGroupRef.current!.addLayer(marker);
+        } catch (err) {
+          console.warn(`Failed to render boss ${boss.id}:`, err);
+        }
+      });
+
+      bossLayerGroupRef.current.addTo(map);
+
+      console.log(`Rendered ${bossMarkersRef.current.length} bosses on ${config.name}`);
+
+      return () => {
+        clearBossMarkers();
+      };
+    }, [
+      bosses,
+      showBosses,
+      bossesLoading,
+      killedBossFlagIds,
+      activeMapId,
+      getActiveConfig,
+      pixelToLatLng,
+      getBossLeafletIcon,
+      createBossPopup,
+      clearBossMarkers,
     ]);
 
     // Active tracking - auto-focus on the tracked player's position

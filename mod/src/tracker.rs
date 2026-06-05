@@ -7,8 +7,10 @@ use hudhook::tracing::{info, warn};
 use libeldenring::prelude::*;
 use windows::Win32::Foundation::HINSTANCE;
 
+use crate::bosses::BossesTracker;
 use crate::config::Config;
 use crate::coordinate_transformer::WorldPositionTransformer;
+use crate::event_flags::EventFlagReader;
 use crate::realtime_client::RealtimeClient;
 use crate::route::{save_route_to_file, RoutePoint};
 
@@ -36,6 +38,10 @@ pub struct RouteTracker {
     pub(crate) transformer: WorldPositionTransformer,
     /// Real-time streaming client (None if disabled)
     pub(crate) realtime_client: Option<RealtimeClient>,
+    /// Boss kill tracker (None if disabled or failed to init)
+    pub(crate) bosses_tracker: Option<BossesTracker>,
+    pub(crate) event_flag_reader: Option<EventFlagReader>,
+    pub(crate) last_boss_poll: Instant,
 }
 
 impl RouteTracker {
@@ -124,6 +130,31 @@ impl RouteTracker {
         } else {
             None
         };
+
+        // Initialize boss kill tracker if enabled
+        let (event_flag_reader, bosses_tracker) = if config.bosses.enabled {
+            let bosses_path = base_dir
+                .join("data")
+                .join(&config.bosses.language)
+                .join("bosses.json");
+
+            match EventFlagReader::new() {
+                Some(reader) => {
+                    let tracker = BossesTracker::load(&bosses_path, &reader);
+                    (Some(reader), tracker)
+                }
+                None => {
+                    warn!("Boss tracking disabled: event flag reader failed to initialize");
+                    (None, None)
+                }
+            }
+        } else {
+            (None, None)
+        };
+
+        if bosses_tracker.is_some() {
+            info!("Boss kill tracking enabled");
+        }
         
         Some(Self {
             pointers,
@@ -141,6 +172,9 @@ impl RouteTracker {
             status_message: None,
             transformer,
             realtime_client,
+            bosses_tracker,
+            event_flag_reader,
+            last_boss_poll: Instant::now(),
         })
     }
     
@@ -162,6 +196,31 @@ impl RouteTracker {
     pub fn start_streaming(&mut self) {
         self.stream_start_time = Some(Instant::now());
         self.is_streaming = true;
+
+        let should_sync = self
+            .realtime_client
+            .as_ref()
+            .map(|client| client.is_configured())
+            .unwrap_or(false);
+
+        if should_sync {
+            if let (Some(reader), Some(tracker)) =
+                (&self.event_flag_reader, &mut self.bosses_tracker)
+            {
+                tracker.update(reader);
+                let killed = tracker.killed_flag_ids();
+                if !killed.is_empty() {
+                    if let Some(ref client) = self.realtime_client {
+                        info!(
+                            "Streaming start: syncing {} killed bosses to backend",
+                            killed.len()
+                        );
+                        client.sync_boss_kills(killed);
+                    }
+                }
+            }
+        }
+
         info!("Streaming started!");
     }
     
@@ -289,6 +348,48 @@ impl RouteTracker {
             client.send_point(&point);
             
             self.last_stream_time = Instant::now();
+        }
+    }
+
+    /// Poll boss kill flags and stream newly killed bosses if streaming is active.
+    pub fn poll_boss_kills(&mut self) {
+        let Some(ref reader) = self.event_flag_reader else {
+            return;
+        };
+        let Some(ref mut tracker) = self.bosses_tracker else {
+            return;
+        };
+
+        let poll_interval = Duration::from_millis(self.config.bosses.poll_interval_ms);
+        if self.last_boss_poll.elapsed() < poll_interval {
+            return;
+        }
+        self.last_boss_poll = Instant::now();
+
+        tracker.update(reader);
+
+        if !self.is_streaming {
+            tracker.take_newly_killed();
+            return;
+        }
+
+        let Some(ref client) = self.realtime_client else {
+            tracker.take_newly_killed();
+            return;
+        };
+
+        let newly_killed = tracker.take_newly_killed();
+        if newly_killed.is_empty() {
+            return;
+        }
+
+        let timestamp_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        for flag_id in newly_killed {
+            client.send_boss_kill(flag_id, timestamp_ms);
         }
     }
     

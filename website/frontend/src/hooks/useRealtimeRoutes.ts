@@ -24,11 +24,35 @@ interface RoutePointBroadcast {
 // Hub connection state type (mirrors signalR.HubConnectionState)
 export type HubState = 'Disconnected' | 'Connecting' | 'Connected' | 'Disconnecting' | 'Reconnecting';
 
+interface BossKillBroadcast {
+  flagId: number;
+  timestampMs: number;
+  receivedAt: string;
+}
+
+async function fetchBossKillHistory(viewKey: string): Promise<number[]> {
+  try {
+    const response = await fetch(
+      `${BACKEND_URL}/api/BossKills?viewKey=${encodeURIComponent(viewKey)}`
+    );
+    if (!response.ok) {
+      console.warn(`Failed to fetch boss kill history for ${viewKey}: ${response.status}`);
+      return [];
+    }
+    const kills: BossKillBroadcast[] = await response.json();
+    return kills.map((kill) => kill.flagId).sort((a, b) => a - b);
+  } catch (err) {
+    console.warn(`Failed to fetch boss kill history for ${viewKey}:`, err);
+    return [];
+  }
+}
+
 interface UseRealtimeRoutesResult {
   viewKeys: string[];
   routes: Record<string, Route>;
   connectionStatus: Record<string, ConnectionStatus>;
   hubState: HubState;
+  killedBossFlagIds: Record<string, number[]>;
   addViewKey: (viewKey: string) => void;
   removeViewKey: (viewKey: string) => void;
   error: string | null;
@@ -95,6 +119,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
   const [error, setError] = useState<string | null>(null);
   // Track last received timestamp for each viewKey to detect inactivity
   const [lastReceivedTimestamps, setLastReceivedTimestamps] = useState<Record<string, number>>({});
+  const [killedBossFlagIds, setKilledBossFlagIds] = useState<Record<string, number[]>>({});
   
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -237,6 +262,30 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
       }));
     });
 
+    const mergeBossKills = (existing: number[], newKills: BossKillBroadcast[]): number[] => {
+      const merged = new Set(existing);
+      newKills.forEach((kill) => merged.add(kill.flagId));
+      return Array.from(merged).sort((a, b) => a - b);
+    };
+
+    connection.on('ReceiveBossKills', (kills: BossKillBroadcast[], viewKey?: string) => {
+      if (!viewKey || !kills?.length) return;
+
+      setKilledBossFlagIds((prev) => ({
+        ...prev,
+        [viewKey]: mergeBossKills(prev[viewKey] ?? [], kills),
+      }));
+    });
+
+    connection.on('ReceiveBossKillHistory', (viewKey: string, kills: BossKillBroadcast[]) => {
+      if (!viewKey || !kills?.length) return;
+
+      setKilledBossFlagIds((prev) => ({
+        ...prev,
+        [viewKey]: kills.map((k) => k.flagId).sort((a, b) => a - b),
+      }));
+    });
+
     // Handle join confirmation
     connection.on('JoinedRoute', (viewKey: string) => {
       setConnectionStatus(prev => ({
@@ -278,13 +327,23 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
       setHubState('Connected');
       // Rejoin all routes after reconnection
       viewKeys.forEach(key => {
-        connection.invoke('JoinRoute', key).catch(err => {
-          console.error('Failed to rejoin route:', err);
-          setConnectionStatus(prev => ({
-            ...prev,
-            [key]: 'error',
-          }));
-        });
+        connection.invoke('JoinRoute', key)
+          .then(async () => {
+            const flagIds = await fetchBossKillHistory(key);
+            if (flagIds.length > 0) {
+              setKilledBossFlagIds((prev) => ({
+                ...prev,
+                [key]: flagIds,
+              }));
+            }
+          })
+          .catch(err => {
+            console.error('Failed to rejoin route:', err);
+            setConnectionStatus(prev => ({
+              ...prev,
+              [key]: 'error',
+            }));
+          });
       });
     });
 
@@ -402,9 +461,17 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
 
     // Join the route - history will be received via the generic ReceiveRouteHistory handler
     connection.invoke('JoinRoute', viewKey)
-      .then(() => {
+      .then(async () => {
         console.log(`Successfully joined route for viewKey: ${viewKey}`);
         setViewKeys(prev => [...prev, viewKey]);
+
+        const flagIds = await fetchBossKillHistory(viewKey);
+        if (flagIds.length > 0) {
+          setKilledBossFlagIds((prev) => ({
+            ...prev,
+            [viewKey]: flagIds,
+          }));
+        }
       })
       .catch(err => {
         console.error('Failed to join route:', err);
@@ -440,6 +507,11 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
       delete newTimestamps[viewKey];
       return newTimestamps;
     });
+    setKilledBossFlagIds(prev => {
+      const next = { ...prev };
+      delete next[viewKey];
+      return next;
+    });
   }, []);
 
   return {
@@ -447,6 +519,7 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
     routes,
     connectionStatus,
     hubState,
+    killedBossFlagIds,
     addViewKey,
     removeViewKey,
     error,

@@ -5,7 +5,7 @@
 param(
     [switch]$Release,
     [switch]$Package,
-    [string]$Version = "0.3.0-alpha",
+    [string]$Version = "0.4.1-alpha",
     [string]$OutputDir = "dist",
     [string]$ReleaseDir = "release"
 )
@@ -62,6 +62,14 @@ try {
     Copy-Item $csvSrc $csvDst -Force
     Write-Host "  [+] Coordinate CSV copied!" -ForegroundColor Gray
 
+    # Copy boss data files
+    $bossDataSrc = "assets\data"
+    $bossDataDst = "$targetDir\data"
+    if (Test-Path $bossDataSrc) {
+        Copy-Item $bossDataSrc $bossDataDst -Recurse -Force
+        Write-Host "  [+] Boss data copied!" -ForegroundColor Gray
+    }
+
     # Package if requested
     if ($Package) {
         Write-Host ""
@@ -80,13 +88,15 @@ try {
             "$targetDir\route-tracker-injector.exe",
             "$targetDir\route_tracker_config.toml",
             "$targetDir\WorldMapLegacyConvParam.csv",
+            "$targetDir\data",
             (Join-Path $projectRoot "README.md"),
             (Join-Path $projectRoot "LICENSE")
         )
         
         foreach ($file in $files) {
             if (Test-Path $file) {
-                Copy-Item $file $OutputDir
+                # -Recurse ensures directories (e.g. data\<lang>\bosses.json) are copied with their contents
+                Copy-Item $file $OutputDir -Recurse -Force
                 Write-Host "  [+] Copied: $(Split-Path $file -Leaf)" -ForegroundColor Gray
             } else {
                 Write-Host "  [!] Not found: $file" -ForegroundColor Yellow
