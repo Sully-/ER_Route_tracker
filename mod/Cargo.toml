@@ -1,6 +1,6 @@
 [package]
 name = "route-tracking"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 authors = ["Your Name <your@email.com>"]
 license = "AGPL-3.0"
@@ -28,10 +28,9 @@ path = "src/bin/convert_enemies.rs"
 # =============================================================================
 
 [dependencies]
-# --- libeldenring from your fork ---
-# IMPORTANT: Replace YOUR_USERNAME with your GitHub username
-# after forking https://github.com/veeenu/eldenring-practice-tool
-libeldenring = { git = "https://github.com/Sully-/eldenring-practice-tool.git", branch = "main" }
+# --- libeldenring (game offsets per Elden Ring version) ---
+# 1.9.9 supports Elden Ring up to 2.07.1
+libeldenring = { git = "https://github.com/veeenu/eldenring-practice-tool.git", tag = "1.9.9" }
 
 # --- hudhook for ImGui overlay (includes imgui as transitive dependency) ---
 hudhook = { version = "0.9.0", features = ["dx12", "inject"], default-features = false }
