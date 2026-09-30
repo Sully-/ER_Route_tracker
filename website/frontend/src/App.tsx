@@ -136,6 +136,7 @@ function App() {
   const [activeMapId, setActiveMapId] = useState<string>(DEFAULT_MAP_ID);
   const [showIcons, setShowIcons] = useState<boolean>(true);
   const [showBosses, setShowBosses] = useState<boolean>(false);
+  const [showAliveBossesOnly, setShowAliveBossesOnly] = useState<boolean>(false);
   const [urlViewKeysProcessed, setUrlViewKeysProcessed] = useState(false);
   
   // ViewKey names mapping (viewKey -> name)
@@ -213,16 +214,19 @@ function App() {
       return new Set(killedBossFlagIds[trackedViewKey] ?? []);
     }
 
-    // After refresh, tracking is not restored — still show kills for active routes
     if (viewKeys.length === 1) {
       return new Set(killedBossFlagIds[viewKeys[0]] ?? []);
     }
 
-    const merged = new Set<number>();
-    viewKeys.forEach((key) => {
-      (killedBossFlagIds[key] ?? []).forEach((id) => merged.add(id));
-    });
-    return merged.size > 0 ? merged : undefined;
+    if (viewKeys.length > 1) {
+      const merged = new Set<number>();
+      viewKeys.forEach((key) => {
+        (killedBossFlagIds[key] ?? []).forEach((id) => merged.add(id));
+      });
+      return merged;
+    }
+
+    return undefined;
   }, [trackedViewKey, viewKeys, killedBossFlagIds]);
 
   // Track if we've started adding URL viewkeys (to avoid adding them multiple times)
@@ -372,6 +376,8 @@ function App() {
         onToggleIcons={setShowIcons}
         showBosses={showBosses}
         onToggleBosses={setShowBosses}
+        showAliveBossesOnly={showAliveBossesOnly}
+        onToggleAliveBossesOnly={setShowAliveBossesOnly}
         killedBossFlagIds={trackedKilledBossIds}
         viewKeys={viewKeys}
         viewKeyNames={viewKeyNames}
@@ -420,6 +426,7 @@ function App() {
         onMapChange={setActiveMapId}
         showIcons={showIcons}
         showBosses={showBosses}
+        showAliveBossesOnly={showAliveBossesOnly}
         killedBossFlagIds={trackedKilledBossIds}
         routeColors={routeColors}
         routeVisibility={routeVisibility}

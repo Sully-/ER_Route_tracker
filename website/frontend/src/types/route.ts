@@ -8,6 +8,7 @@ export interface RoutePoint {
   map_id: number;
   map_id_str: string;
   global_map_id?: number; // 60 = Lands Between, 61 = Shadow Realm (optional for backward compatibility)
+  angle?: number; // Player look/facing direction (yaw) in radians; 0 = +Z, increases towards +X
   timestamp_ms: number;
 }
 

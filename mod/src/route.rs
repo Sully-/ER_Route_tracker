@@ -32,6 +32,9 @@ pub struct RoutePoint {
     /// Global map area number (60 for Lands Between, 61 for Shadow Realm)
     /// This indicates which global map the coordinates belong to after conversion
     pub global_map_id: u8,
+    /// Player look/facing direction (yaw) in radians.
+    /// 0 points along +Z and increases towards +X.
+    pub angle: f32,
     /// Timestamp in milliseconds from start of recording
     pub timestamp_ms: u64,
 }

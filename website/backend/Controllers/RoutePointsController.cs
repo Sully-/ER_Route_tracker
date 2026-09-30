@@ -15,17 +15,20 @@ public class RoutePointsController : ControllerBase
 {
     private readonly IKeyService _keyService;
     private readonly IRouteService _routeService;
+    private readonly IBossService _bossService;
     private readonly IHubContext<RouteHub> _hubContext;
     private readonly ILogger<RoutePointsController> _logger;
 
     public RoutePointsController(
         IKeyService keyService,
         IRouteService routeService,
+        IBossService bossService,
         IHubContext<RouteHub> hubContext,
         ILogger<RoutePointsController> logger)
     {
         _keyService = keyService;
         _routeService = routeService;
+        _bossService = bossService;
         _hubContext = hubContext;
         _logger = logger;
     }
@@ -100,6 +103,7 @@ public class RoutePointsController : ControllerBase
                 p.GlobalX, p.GlobalY, p.GlobalZ,
                 p.MapId, p.MapIdStr,
                 p.GlobalMapId,
+                p.Angle,
                 p.TimestampMs, p.ReceivedAt
             ))
             .ToList();
@@ -163,11 +167,18 @@ public class RoutePointsController : ControllerBase
 
         // Delete all route points
         var deletedCount = await _routeService.DeleteRoutePointsByKeyPairIdAsync(keyId);
-        
-        _logger.LogInformation("User {UserId} reset routes for key {KeyId}: {DeletedCount} points deleted", 
-            userId, keyId, deletedCount);
 
-        return Ok(new { message = "Routes reset successfully", deletedCount });
+        // Delete all boss kills associated with this key pair
+        var deletedBossKills = await _bossService.DeleteBossKillsByKeyPairIdAsync(keyId);
+
+        // Notify live viewers so the map clears without requiring a page reload
+        var groupName = $"route:{keyPair.ViewKey}";
+        await _hubContext.Clients.Group(groupName).SendAsync("RoutesReset", keyPair.ViewKey);
+
+        _logger.LogInformation("User {UserId} reset routes for key {KeyId}: {DeletedCount} points deleted, {DeletedBossKills} boss kills deleted", 
+            userId, keyId, deletedCount, deletedBossKills);
+
+        return Ok(new { message = "Routes reset successfully", deletedCount, deletedBossKills });
     }
 }
 

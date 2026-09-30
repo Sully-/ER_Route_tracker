@@ -143,6 +143,7 @@ export default function AccountPage() {
           map_id: p.mapId,
           map_id_str: p.mapIdStr || '',
           global_map_id: p.globalMapId,
+          angle: p.angle,
           timestamp_ms: p.timestampMs,
         })),
       };

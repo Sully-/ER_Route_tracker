@@ -11,7 +11,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapContainer.css';
 import { Route } from '../../types/route';
-import { gameToPixelForMap } from '../../utils/coordinateTransform';
+import { gameToPixelForMap, calculateTransformForMap } from '../../utils/coordinateTransform';
 import {
   MapConfig,
   MAP_CONFIGS,
@@ -45,6 +45,7 @@ interface MapContainerProps {
   onMapChange?: (mapId: string) => void;
   showIcons?: boolean;
   showBosses?: boolean;
+  showAliveBossesOnly?: boolean;
   killedBossFlagIds?: Set<number>;
   routeColors?: Record<string, string>;
   routeVisibility?: Record<string, boolean>;
@@ -82,7 +83,7 @@ function getColorForViewKey(
 }
 
 const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
-  ({ staticRoutes = {}, staticRouteIds = [], staticRouteNames = {}, realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, showBosses: propShowBosses, killedBossFlagIds, routeColors, routeVisibility = {}, trackedViewKey, selectedRouteId, onSelectRoute }, ref) => {
+  ({ staticRoutes = {}, staticRouteIds = [], staticRouteNames = {}, realtimeRoutes, viewKeyNames = {}, activeMapId: propActiveMapId, onMapChange: propOnMapChange, showIcons: propShowIcons, showBosses: propShowBosses, showAliveBossesOnly = false, killedBossFlagIds, routeColors, routeVisibility = {}, trackedViewKey, selectedRouteId, onSelectRoute }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const tileLayerRef = useRef<L.TileLayer | null>(null);
@@ -588,37 +589,61 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
               onSelectRoute ? (key) => onSelectRoute(key) : undefined
             );
             
-            // Add a marker at the current position (last point)
+            // Add a marker at the current position (last point), oriented
+            // towards the player's look direction.
             if (lastPoint) {
               const pixel = gameToPixelForMap(lastPoint.global_x, lastPoint.global_z, config);
               const latLng = pixelToLatLng(pixel.x, pixel.y, config);
-              
-              const playerMarker = L.circleMarker(latLng, {
-                radius: isSelected ? 14 : 12,
-                fillColor: color,
-                color: isSelected ? color : '#ffffff',
-                weight: isSelected ? 4 : 3,
-                opacity: 1,
-                fillOpacity: 1,
+
+              // Game yaw: 0 = +Z, increases towards +X => direction (sin, cos)
+              // in (x, z), transformed through the map's affine linear part.
+              const yaw = lastPoint.angle ?? 0;
+              const dirX = Math.sin(yaw);
+              const dirZ = Math.cos(yaw);
+              const t = calculateTransformForMap(config);
+              const screenDx = t.a * dirX + t.b * dirZ;
+              const screenDy = t.d * dirX + t.e * dirZ;
+              // The facing came out reversed (NE shown as SW), i.e. pointing the
+              // exact opposite way, so rotate the screen angle by 180 degrees.
+              const screenDeg = (Math.atan2(screenDy, screenDx) * 180) / Math.PI + 180;
+
+              const size = isSelected ? 30 : 26;
+              const half = size / 2;
+              const strokeColor = isSelected ? color : '#ffffff';
+              const strokeWidth = isSelected ? 3 : 2;
+              // Triangle pointing right (0deg = +X in screen space), centered.
+              const points = `${size * 0.92},${half} ${size * 0.12},${size * 0.16} ${size * 0.12},${size * 0.84}`;
+              const html = `<div class="player-triangle-inner"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="overflow:visible;display:block;"><g transform="rotate(${screenDeg} ${half} ${half})"><polygon points="${points}" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-linejoin="round" /></g></svg></div>`;
+
+              const icon = L.divIcon({
+                className: isSelected ? 'player-triangle-icon marker-selected' : 'player-triangle-icon',
+                html,
+                iconSize: [size, size],
+                iconAnchor: [half, half],
+              });
+
+              const playerMarker = L.marker(latLng, {
+                icon,
                 pane: isSelected ? 'selectedMarkersPane' : 'teleportPane',
-                className: isSelected ? 'realtime-player-marker marker-selected' : 'realtime-player-marker',
               }).addTo(map);
-              
-              // Use custom name if available, otherwise use truncated viewKey
-              const playerName = viewKeyNames[viewKey]?.trim() || `${viewKey.substring(0, 8)}...${viewKey.substring(viewKey.length - 4)}`;
+
+              // Only show a permanent label when the player has a custom name.
+              // Otherwise the raw viewKey is shown on hover only (no clutter).
+              const customName = viewKeyNames[viewKey]?.trim();
+              const playerName = customName || `${viewKey.substring(0, 8)}...${viewKey.substring(viewKey.length - 4)}`;
               playerMarker.bindTooltip(playerName, {
                 direction: 'top',
-                offset: [0, -10],
-                permanent: true,
+                offset: [0, -half - 2],
+                permanent: Boolean(customName),
               });
-              
+
               // Click to select route
               playerMarker.on('click', (e) => {
                 L.DomEvent.stopPropagation(e);
                 onSelectRoute?.(viewKey);
               });
-              
-              teleportMarkersRef.current.push(playerMarker as unknown as L.Marker);
+
+              teleportMarkersRef.current.push(playerMarker);
             }
           }
         });
@@ -1091,9 +1116,13 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
 
       bosses.forEach((boss) => {
         try {
+          const isKilled = killedBossFlagIds?.has(boss.flagId) ?? false;
+          if (showAliveBossesOnly && isKilled) {
+            return;
+          }
+
           const pixel = gameToPixelForMap(boss.globalX, boss.globalZ, config);
           const latLng = pixelToLatLng(pixel.x, pixel.y, config);
-          const isKilled = killedBossFlagIds?.has(boss.id) ?? false;
 
           const marker = L.marker(latLng, {
             icon: getBossLeafletIcon(isKilled),
@@ -1119,6 +1148,7 @@ const MapContainer = forwardRef<MapContainerHandle, MapContainerProps>(
     }, [
       bosses,
       showBosses,
+      showAliveBossesOnly,
       bossesLoading,
       killedBossFlagIds,
       activeMapId,

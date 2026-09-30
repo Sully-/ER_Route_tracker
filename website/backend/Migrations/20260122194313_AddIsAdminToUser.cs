@@ -10,20 +10,19 @@ namespace RouteTracker.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<bool>(
-                name: "IsAdmin",
-                table: "Users",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false);
+            // Idempotent: the column already exists in some environments where
+            // it was added without recording this migration in
+            // __EFMigrationsHistory. "IF NOT EXISTS" makes applying safe
+            // regardless of schema state (no manual reconciliation needed).
+            migrationBuilder.Sql(
+                "ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"IsAdmin\" boolean NOT NULL DEFAULT false;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "IsAdmin",
-                table: "Users");
+            migrationBuilder.Sql(
+                "ALTER TABLE \"Users\" DROP COLUMN IF EXISTS \"IsAdmin\";");
         }
     }
 }

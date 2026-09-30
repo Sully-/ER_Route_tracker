@@ -361,6 +361,7 @@ export interface RoutePointData {
   mapId: number;
   mapIdStr: string | null;
   globalMapId: number;
+  angle: number;
   timestampMs: number;
   receivedAt: string;
 }

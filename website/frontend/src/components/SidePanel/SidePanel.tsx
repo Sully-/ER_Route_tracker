@@ -22,6 +22,8 @@ interface SidePanelProps {
   onToggleIcons: (show: boolean) => void;
   showBosses: boolean;
   onToggleBosses: (show: boolean) => void;
+  showAliveBossesOnly: boolean;
+  onToggleAliveBossesOnly: (show: boolean) => void;
   killedBossFlagIds?: Set<number>;
   viewKeys: string[];
   viewKeyNames: Record<string, string>;
@@ -83,6 +85,8 @@ function SidePanel({
   onToggleIcons,
   showBosses,
   onToggleBosses,
+  showAliveBossesOnly,
+  onToggleAliveBossesOnly,
   killedBossFlagIds,
   viewKeys,
   viewKeyNames,
@@ -132,6 +136,11 @@ function SidePanel({
   // Load map icons and bosses
   const { icons, isLoading: iconsLoading } = useMapIcons({ mapId: activeMapId });
   const { bosses, isLoading: bossesLoading } = useBossIcons({ mapId: activeMapId });
+
+  const killedOnMapCount = killedBossFlagIds
+    ? bosses.filter((boss) => killedBossFlagIds.has(boss.flagId)).length
+    : 0;
+  const aliveOnMapCount = bosses.length - killedOnMapCount;
 
   // Detect transitions in first static route (if any)
   const firstStaticRoute = staticRouteIds.length > 0 ? staticRoutes[staticRouteIds[0]] : null;
@@ -513,44 +522,82 @@ function SidePanel({
             </button>
           ))}
         </div>
-        <div className="icon-toggle-container">
-          <button
-            onClick={() => onToggleIcons(!showIcons)}
-            className={`icon-toggle-btn ${showIcons ? 'active' : ''}`}
-          >
-            {showIcons ? '🗺️ Icons ON' : '🗺️ Icons OFF'}
-          </button>
-          {showIcons && !iconsLoading && (
-            <span className="icon-count">
-              {icons.length} icons
-            </span>
-          )}
-          {iconsLoading && (
-            <span className="icon-count">
-              Loading...
-            </span>
-          )}
+
+        <div className="map-overlays">
+          <h3 className="map-overlays-title">Overlays</h3>
+
+          <div className="overlay-row">
+            <div className="overlay-row-main">
+              <div className="overlay-label">
+                <span className="overlay-name">POI Icons</span>
+                <span className="overlay-meta">
+                  {iconsLoading ? 'Loading…' : `${icons.length} on map`}
+                </span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showIcons}
+                aria-label="Toggle POI icons"
+                className={`overlay-switch ${showIcons ? 'active' : ''}`}
+                onClick={() => onToggleIcons(!showIcons)}
+              >
+                <span className="overlay-switch-thumb" />
+              </button>
+            </div>
+          </div>
+
+          <div className={`overlay-row ${showBosses ? 'expanded' : ''}`}>
+            <div className="overlay-row-main">
+              <div className="overlay-label">
+                <span className="overlay-name">Bosses</span>
+                <span className="overlay-meta">
+                  {bossesLoading
+                    ? 'Loading…'
+                    : showAliveBossesOnly && killedBossFlagIds
+                      ? `${aliveOnMapCount} alive · ${bosses.length} on map`
+                      : killedBossFlagIds
+                        ? `${killedOnMapCount} defeated · ${bosses.length} on map`
+                        : `${bosses.length} on map`}
+                </span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showBosses}
+                aria-label="Toggle boss markers"
+                className={`overlay-switch ${showBosses ? 'active' : ''}`}
+                onClick={() => onToggleBosses(!showBosses)}
+              >
+                <span className="overlay-switch-thumb" />
+              </button>
+            </div>
+
+            {showBosses && (
+              <div className="overlay-row-sub">
+                <div className="overlay-label">
+                  <span className="overlay-name">Hide defeated</span>
+                  <span className="overlay-meta">
+                    {killedBossFlagIds
+                      ? 'Show remaining bosses only'
+                      : 'Requires a live route'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showAliveBossesOnly}
+                  aria-label="Hide defeated bosses"
+                  className={`overlay-switch overlay-switch-sm ${showAliveBossesOnly ? 'active' : ''}`}
+                  onClick={() => onToggleAliveBossesOnly(!showAliveBossesOnly)}
+                >
+                  <span className="overlay-switch-thumb" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="icon-toggle-container">
-          <button
-            onClick={() => onToggleBosses(!showBosses)}
-            className={`icon-toggle-btn ${showBosses ? 'active' : ''}`}
-          >
-            {showBosses ? '💀 Bosses ON' : '💀 Bosses OFF'}
-          </button>
-          {showBosses && !bossesLoading && (
-            <span className="icon-count">
-              {killedBossFlagIds && killedBossFlagIds.size > 0
-                ? `${killedBossFlagIds.size} killed / ${bosses.length} on map`
-                : `${bosses.length} bosses`}
-            </span>
-          )}
-          {bossesLoading && (
-            <span className="icon-count">
-              Loading...
-            </span>
-          )}
-        </div>
+
         {transitions.length > 0 && (
           <div className="transitions-info">
             <span className="transitions-icon">⟳</span>

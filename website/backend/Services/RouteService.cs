@@ -39,6 +39,7 @@ public class RouteService : IRouteService
             MapId = request.MapId,
             MapIdStr = request.MapIdStr,
             GlobalMapId = request.GlobalMapId,
+            Angle = request.Angle,
             TimestampMs = request.TimestampMs,
             ReceivedAt = DateTime.UtcNow
         };
@@ -78,6 +79,7 @@ public class RouteService : IRouteService
             MapId = request.MapId,
             MapIdStr = request.MapIdStr,
             GlobalMapId = request.GlobalMapId,
+            Angle = request.Angle,
             TimestampMs = request.TimestampMs,
             ReceivedAt = DateTime.UtcNow
         }).ToList();
@@ -130,6 +132,7 @@ public class RouteService : IRouteService
                 rp.MapId,
                 rp.MapIdStr,
                 rp.GlobalMapId,
+                rp.Angle,
                 rp.TimestampMs,
                 rp.ReceivedAt
             ))

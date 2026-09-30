@@ -17,6 +17,7 @@ interface RoutePointBroadcast {
   mapId: number;
   mapIdStr: string | null;
   globalMapId: number;
+  angle: number;
   timestampMs: number;
   receivedAt: string;
 }
@@ -71,6 +72,7 @@ function broadcastToRoutePoint(broadcast: RoutePointBroadcast): RoutePoint {
     map_id_str: broadcast.mapIdStr || '',
     timestamp_ms: broadcast.timestampMs,
     global_map_id: broadcast.globalMapId,
+    angle: broadcast.angle,
   };
 }
 
@@ -284,6 +286,32 @@ export function useRealtimeRoutes(): UseRealtimeRoutesResult {
         ...prev,
         [viewKey]: kills.map((k) => k.flagId).sort((a, b) => a - b),
       }));
+    });
+
+    // Handle a route reset triggered from the account page: clear both the
+    // route points and the killed boss flags so live viewers update instantly.
+    connection.on('RoutesReset', (viewKey: string) => {
+      if (!viewKey) return;
+
+      setRoutes((prev) => {
+        if (!prev[viewKey]) return prev;
+        return {
+          ...prev,
+          [viewKey]: {
+            ...prev[viewKey],
+            points: [],
+            point_count: 0,
+          },
+        };
+      });
+
+      setKilledBossFlagIds((prev) => {
+        if (!(viewKey in prev)) return prev;
+        return {
+          ...prev,
+          [viewKey]: [],
+        };
+      });
     });
 
     // Handle join confirmation

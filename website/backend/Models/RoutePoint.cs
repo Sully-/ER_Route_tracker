@@ -65,6 +65,12 @@ public class RoutePoint
     public byte GlobalMapId { get; set; }
     
     /// <summary>
+    /// Player look/facing direction (yaw) in radians.
+    /// 0 points along +Z and increases towards +X.
+    /// </summary>
+    public float Angle { get; set; }
+    
+    /// <summary>
     /// Timestamp in milliseconds from start of recording
     /// </summary>
     public ulong TimestampMs { get; set; }

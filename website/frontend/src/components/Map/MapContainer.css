@@ -26,6 +26,21 @@
   transform-box: fill-box;
 }
 
+/* Directional triangle marker (divIcon). The outer element is positioned by
+   Leaflet via transform, so the pulse animation lives on an inner wrapper to
+   avoid clobbering Leaflet's positioning transform. */
+.player-triangle-icon {
+  background: transparent;
+  border: none;
+}
+
+.player-triangle-inner {
+  width: 100%;
+  height: 100%;
+  animation: sonarPulse 1.5s ease-in-out infinite;
+  transform-origin: center;
+}
+
 /* ============================================ */
 /* Map Container Layout                         */
 /* ============================================ */

@@ -267,7 +267,18 @@ impl RouteTracker {
                 });
             
             let map_id_str = WorldPositionTransformer::format_map_id(map_id);
-            
+
+            // Look/facing direction (yaw) in radians. The live facing angle is
+            // held by chunk_position (global_position's angle fields are not the
+            // player's facing), stored as a quaternion component -> yaw = 2*asin.
+            let angle = self
+                .pointers
+                .chunk_position
+                .angle1
+                .read()
+                .map(|a1| a1.asin() * 2.0)
+                .unwrap_or(0.0);
+
             self.route.push(RoutePoint {
                 x,
                 y,
@@ -278,6 +289,7 @@ impl RouteTracker {
                 map_id,
                 map_id_str,
                 global_map_id,
+                angle,
                 timestamp_ms,
             });
             
@@ -330,7 +342,16 @@ impl RouteTracker {
                 });
             
             let map_id_str = WorldPositionTransformer::format_map_id(map_id);
-            
+
+            // Look/facing direction (yaw) in radians. See record_position.
+            let angle = self
+                .pointers
+                .chunk_position
+                .angle1
+                .read()
+                .map(|a1| a1.asin() * 2.0)
+                .unwrap_or(0.0);
+
             let point = RoutePoint {
                 x,
                 y,
@@ -341,6 +362,7 @@ impl RouteTracker {
                 map_id,
                 map_id_str,
                 global_map_id,
+                angle,
                 timestamp_ms,
             };
             
